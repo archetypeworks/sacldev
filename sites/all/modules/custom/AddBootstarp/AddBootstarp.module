@@ -1,0 +1,15 @@
+<?php
+function AddBootstarp_init(){
+global $theme_path;
+global $theme;
+	if($theme=="sacl"){
+		drupal_add_js($theme_path . '/js/jquery-min-v11.js',array('scope' => 'footer','weight' =>7));
+		drupal_add_js($theme_path . '/js/bootstrap.min.js',array('scope' => 'footer','weight' =>8));
+		drupal_add_js($theme_path . '/js/owl.carousel.min.js',array('scope' => 'footer','weight' =>9));
+		//drupal_add_css(drupal_get_path('module', 'Themes'). '/lib/css/flexslider.css', array('weight' => '-50'));
+	}
+}
+
+function AddBootstarp_js_alter(&$javascript) {
+
+}

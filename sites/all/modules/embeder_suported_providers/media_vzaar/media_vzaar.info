@@ -1,0 +1,20 @@
+
+name = Media: Vzaar
+description = Provides Vzaar support to the Media module.
+package = "Media"
+core = 7.x
+files[] = media_vzaar.module
+files[] = includes/MediaInternetVzaarHandler.inc
+files[] = includes/MediaVzaarStreamWrapper.inc
+files[] = includes/MediaVzaarStyles.inc
+files[] = includes/media_vzaar.formatters.inc
+files[] = includes/media_vzaar.styles.inc
+files[] = includes/media_vzaar.variables.inc
+dependencies[] = media_internet
+
+; Information added by drupal.org packaging script on 2012-03-26
+version = "7.x-1.0"
+core = "7.x"
+project = "media_vzaar"
+datestamp = "1332769547"
+

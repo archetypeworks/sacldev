@@ -1,0 +1,27 @@
+#commerce-checkout-form-login .forget-sec{
+min-height:150px;
+}
+#commerce-checkout-form-checkout .panel-heading {
+    text-transform: capitalize;
+}
+.form-type-textfield.form-item-commerce-coupon-coupon-code{
+width:84%;
+float:left;
+padding-right:4%;
+
+}
+#edit-commerce-coupon-coupon-add{
+margin-top:28px;
+}
+.form-type-radio.form-item-commerce-payment-payment-method.form-item.radio{
+display:none;
+}
+.view-current-book-page-buy-now-button .view-content .views-row .views-field div{
+margin:0px;
+width:100%;
+}
+.view-current-book-page-buy-now-button .view-content .views-row .views-field div .btn-success{
+left:0px;
+width:93%;
+margin-top:11px;
+}

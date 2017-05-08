@@ -1,0 +1,17 @@
+name = Date Restrictions Min/Max
+description = Restricts accepted values in date fields based on a minimum and/or maximum limit.
+core = 7.x
+package = Date/Time
+dependencies[] = date_restrictions
+
+; Tests
+files[] = tests/date_restrictions_minmax.test
+files[] = tests/date_restrictions_minmax_host_entity.test
+
+
+; Information added by Drupal.org packaging script on 2015-08-25
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "date_restrictions"
+datestamp = "1440521040"
+

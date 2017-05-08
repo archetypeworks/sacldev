@@ -1,0 +1,619 @@
+<?php
+/*
+ * @file
+ * Commerce Authnet ARB module.
+ */
+
+/**
+ * Implements hook_commerce_payment_method_info()
+ .
+ */
+function commerce_authnet_arb_commerce_payment_method_info() {
+  $payment_methods = array();
+
+  $payment_methods['commerce_authnet_arb'] = array(
+    'base' =>  'commerce_authnet_arb',
+    'title' => t('Recurring payments with Authorize.Net ARB (with credit card)'),
+    'short_title' => t('Authorize.Net ARB Credit Card'),
+    'display_title' => t('Recurring payments'),
+    'description' => t('Integrates Authorize.Net ARB for transactions.'),
+    'callbacks' => array(
+      'settings_form' => 'commerce_authnet_arb_commerce_settings_pane',
+      'submit_form' => 'commerce_authnet_arb_payment_pane',
+      'submit_form_submit' => 'commerce_authnet_arb_payment_pane_submit',
+      'submit_form_validate' => 'commerce_authnet_arb_payment_pane_validate',
+    ),
+    'file' => 'commerce_authnet_arb.commerce.inc',
+  );
+
+  return $payment_methods;
+}
+
+/*
+ * Implements hook_menu().
+ */
+function commerce_authnet_arb_menu () {
+  $items = array();
+
+  $items['authnet-arb-silentpost'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => 'commerce_authnet_arb_silentpost',
+    'access callback' => TRUE,
+  );
+
+  $items['authnet-arb-silentpost-test'] = array(
+    'type' => MENU_CALLBACK,
+    'page callback' => 'commerce_authnet_arb_silentpost',
+    'page arguments' => array(TRUE),
+    'access callback' => TRUE,
+  );
+
+  $items['admin/config/commerce_authnet_arb'] = array(
+    'type' => MENU_NORMAL_ITEM,
+    'title' => 'Authorize ARB Settings',
+    'page callback' => 'drupal_get_form',
+    'page arguments' => array('commerce_authnet_arb_settings_form'),
+    'access callback' => 'user_access',
+    'access arguments' => array('administer authorize arb'),
+  );
+
+  return $items;
+}
+
+/*
+ * A module settings form
+ */
+function commerce_authnet_arb_settings_form ($form, $form_state) {
+  $form = commerce_authnet_arb_settings_pane();
+  return system_settings_form($form);
+}
+
+function commerce_authnet_arb_settings_pane ($settings = NULL, $form_disabled = FALSE) {
+  if (empty($settings)) {
+    $settings = commerce_authnet_arb_settings();
+  }
+  $disabled = ($form_disabled === FALSE) ? FALSE : TRUE;
+
+  $form = array();
+
+  $form['settings'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Authorize.net payment settings'),
+  );
+
+  $form['settings']['commerce_authnet_arb_login_id'] = array(
+    '#title' => t('API Login ID'),
+    '#type' => 'textfield',
+    '#disabled' => $disabled,
+    '#default_value' => variable_get('commerce_authnet_arb_login_id', $settings['login']),
+    '#description' => t('Your API Login ID is different from the username you use to login to    your Authorize.Net account. Once you login, browse to your Account tab and click the API  Login ID and Transaction Key link to find your API Login ID. If you are using a new Authorize.Net account, you may still need to generate an ID.'),
+  );
+
+  $form['settings']['commerce_authnet_arb_tran_key'] = array(
+    '#title' => t('Transaction Key'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('commerce_authnet_arb_tran_key', $settings['tran_key']),
+    '#description' => t('Your Transaction Key can be found on the same screen as your API Login ID.
+      However, it will not be readily displayed. You must answer your security question and submit a form to see your Transaction Key.'),
+  );
+
+  $form['settings']['commerce_authnet_arb_sandbox'] = array(
+    '#title' => t('Sandbox Mode'),
+    '#type' => 'checkbox',
+    '#default_value' => variable_get('commerce_authnet_arb_sandbox', $settings['sandbox']),
+    '#description' => t('In sandbox mode the module interact with authnet development test server.'),
+  );
+
+  // ToDo: add a status report notification to check is MD5 Hash Secret Value is configured.
+  $form['settings']['commerce_authnet_arb_md5_hash'] = array(
+    '#title' => t('MD5 Hash Secret Value'),
+    '#type' => 'textfield',
+    '#default_value' => variable_get('commerce_authnet_arb_md5_hash', $settings['md5_hash']),
+    '#description' =>
+      t('The MD5 Hash Value, which is assigned by the merchant in the account\'s Settings.
+      MD5 Hash Value can be up to 20 characters long, including upper- and lower-case letters, numbers, spaces, and punctuation.
+      More complex values will be more secure.
+      The MD5 Hash option allows your script to verify that the results of a transaction are actually from Authorize.Net.
+      If the MD5 Hash the module creates matches the MD5 Hash received, then the module know that the transaction response was sent by Authorize.Net.
+      Enter here the same value you have entered in Authorize.Net account settings.
+      IT IS NOT REQUIRED, BUT STRONGLY RECOMMENDED TO USE FOR SECURING REASONS.'),
+  );
+
+  $form['settings']['commerce_authnet_arb_debugging_watchdog_all'] = array(
+    '#title' => t('Log all requests, responses and silentpost requests'),
+    '#type' => 'checkbox',
+    '#default_value' => $settings['watchdog_all'],
+  );
+
+  return $form;
+}
+
+/*
+ * Return all module settings including data needed to perform a transactions.
+ */
+function commerce_authnet_arb_settings () {
+
+  static $settings = NULL;
+
+  if (!isset($settings)) {
+    $sandbox = variable_get('commerce_authnet_arb_sandbox', 1);
+    $md5_hash = variable_get('commerce_authnet_arb_md5_hash', '');
+    $watchdog_all = variable_get('commerce_authnet_arb_debugging_watchdog_all', FALSE);
+    $settings = array(
+      'login' => variable_get('commerce_authnet_arb_login_id', ''),
+      'tran_key' => variable_get('commerce_authnet_arb_tran_key', ''),
+      'sandbox' => $sandbox,
+      'md5_hash' => $md5_hash,
+      'watchdog_all' => $watchdog_all,
+    );
+    // If settings was not loaded from database,
+    // try to get it from commerce_authnet module.
+    if (empty($settings['login']) || empty($settings['tran_key'])) {
+      if (module_exists('commerce_authnet')) {
+        watchdog('Authnet ARB','No settings confirmed');
+        $commerce_authnet_aim_payment = commerce_payment_method_instance_load('authnet_aim|commerce_payment_authnet_aim');
+        $settings = $commerce_authnet_aim_payment['settings'];
+        $settings['sandbox'] = $sandbox;
+        $settings['md5_hash'] = $md5_hash;
+        $settings['watchdog_all'] = $watchdog_all;
+      } else {
+        $settings = FALSE;
+      }
+    }
+  }
+
+  // Return settings if it is loaded and not empty.
+  if (!($settings === FALSE)) {
+    return $settings;
+  }
+
+  // return the exceptions if
+  //  * settings was not loaded from the db
+  //  * settings was not loaded from commerce_authnet module
+  //  * settings was requested not by administrative page
+  $menu_item = menu_get_item();
+  if ($menu_item['path'] != 'admin/config/commerce_authnet_arb') {
+    throw new Exception(t('authorize.net SDK settings not specified. Please set it on @page',
+      array('@page' => l(t('admin/config/commerce_authnet_arb'), 'admin/config/commerce_authnet_arb')))
+    );
+  }
+}
+
+/*
+ * Silentpost request page callback.
+ */
+function commerce_authnet_arb_silentpost($testmode = FALSE) {
+
+  if ($testmode) {
+    $post = commerce_authet_arb_get_sample_silentpost_post();
+    foreach ($_GET as $key => $value) {
+      if (array_key_exists($key, $post)) {
+        $post[check_plain($key)] = check_plain($value);
+      }
+    }
+  }
+  else {
+    $post = array();
+    foreach ($_POST as $key => $value) {
+      $post[check_plain($key)] = check_plain($value);
+    }
+  }
+
+  // React only if response is from ARB.
+  if (isset ($post['x_subscription_id'])) {
+    // Verification by md5 hash
+    $settings = commerce_authnet_arb_settings();
+    if ($settings['watchdog_all']) {
+      watchdog('commerce_authnet_arb', t('Silentpost request:<br> @post', array('@post' => var_export($post ,TRUE))));
+    }
+    if(!empty($settings['md5_hash'])) {
+      $hash = md5($settings['md5_hash'].$post['x_trans_id'].$post['x_amount']);
+      if ($post['x_MD5_Hash'] != $hash) {
+        watchdog('commerce_authnet_arb',
+          t('Authnet ARB received a silentpost request that was not passed the MD5 verifivation. Check the settings page. </br>Request: </br>@request',
+          array('@request' => var_export($post, TRUE))),
+          NULL,
+          WATCHDOG_CRITICAL
+        );
+        return;
+      }
+    }
+
+    if (module_exists('commerce_payment')) {
+      authet_arb_commerce_transaction ($post);
+    }
+    module_invoke_all('commerce_authnet_arb_silentpost', $post);
+  }
+}
+
+/*
+ * Form pane to set reccuring settings.
+ */
+function commerce_authnet_arb_recurring_info_pane ($recurring = array()) {
+
+  $form = array();
+
+  $form['commerce_authnet_arb_period'] = array(
+    '#type' => 'select',
+    '#title' => t('Period'),
+    '#options' => array(
+      'days' => t('Daily'),
+      'months' => t('Monthly')
+    ),
+    '#default_value' => 'none',
+  );
+  if (isset($recurring['period']) && in_array($recurring['period'], array_flip($form['commerce_authnet_arb_period']['#options']))) {
+    $form['commerce_authnet_arb_period']['#value'] = $recurring['period'];
+    $form['commerce_authnet_arb_period']['#access'] = FALSE;
+  }
+
+  $form['commerce_authnet_arb_interval_step'] = array(
+    '#type' => 'textfield',
+    '#size' => 3,
+    '#title' => t('Interval'),
+    '#description' => t('An interval value must be 1 to 12 for monthly payments and 7 to 365 for daily payments.'),
+  );
+  if (isset($recurring['step'])) {
+    $form['commerce_authnet_arb_interval_step']['#value'] = $recurring['step'];
+    $form['commerce_authnet_arb_interval_step']['#access'] = FALSE;
+  }
+
+  return $form;
+}
+
+/**
+ * Validation callback for reccuring settings.
+ */
+function commerce_authnet_arb_recurring_info_pane_validation ($pane_values, $form_parents = array()) {
+  $prefix = implode('][', $form_parents) . '][recurring_options][';
+
+  $valid = TRUE;
+
+  // If period is set, interval is required.
+  if($pane_values['commerce_authnet_arb_period'] == 'days' || $pane_values['commerce_authnet_arb_period'] == 'months') {
+    // Perform validation only if allowed recurring period is passed.
+    if (empty($pane_values['commerce_authnet_arb_interval_step'])) {
+      $valid = FALSE;
+      form_set_error($prefix.'commerce_authnet_arb_interval_step', t('Recurring interval is required if the Recurring perion is selected.'));
+    }
+
+    if ($pane_values['commerce_authnet_arb_period'] == 'days' &&
+       ($pane_values['commerce_authnet_arb_interval_step'] < 7 || $pane_values['commerce_authnet_arb_interval_step'] > 365)) {
+      $valid = FALSE;
+      form_set_error($prefix.'commerce_authnet_arb_interval_step', t('Recurring interval value must be between 7 and 365 for daily interval.'));
+    }
+
+    if ($pane_values['commerce_authnet_arb_period'] == 'months' &&
+       ($pane_values['commerce_authnet_arb_interval_step'] < 1 || $pane_values['commerce_authnet_arb_interval_step'] > 12)) {
+      $valid = FALSE;
+      form_set_error($prefix.'commerce_authnet_arb_interval_step', t('Recurring interval value must be between 1 and 12 for monthly interval.'));
+    }
+  }
+
+  return $valid;
+}
+
+/**
+ * Validated card can be processed by authnet payment gateway
+ */
+function commerce_authnet_arb_verify_payment ($charge, $card, &$responce = array()) {
+  if ($charge['currency_code'] != 'USD') {
+    drupal_set_message('Only USD payments can be processed by authorize.net.' ,'error');
+    return FALSE;
+  }
+
+  require_once commerce_authnet_arb_sdk_path().'/AuthorizeNet.php';
+  $settings = commerce_authnet_arb_settings();
+
+  // Test transaction with the AIM method with the same amount required 
+  // for ARB transaction to verify if the credit card is valid immediately
+  // This trasnaction is cancelled and then a new ARB transactio is
+  // initiated on success. 
+  $auth = new AuthorizeNetAIM($settings['login'], $settings['tran_key']);
+  $auth->invoice_num = time();
+
+  if ($settings['sandbox']) {
+    $auth->setSandbox(TRUE);
+  }
+  else {
+    $auth->setSandbox(FALSE);
+  }
+
+  $auth->amount = $charge['amount']/100;
+  $auth->card_num = $card['number'];
+  $auth->exp_date = $card['exp_year'].'-'.$card['exp_month'];
+
+  if ($settings['watchdog_all']) {
+    watchdog('commerce_authnet_arb', t('CC verification request:<br> @var', array('@var' => var_export($auth ,TRUE))));
+  }
+
+  $response = $auth->authorizeOnly();
+  if ($settings['watchdog_all']) {
+    watchdog('commerce_authnet_arb', t('CC verification response:<br> @var', array('@var' => var_export($response ,TRUE))));
+  }
+  if ($response->approved) {
+    $return = TRUE;
+  }
+  elseif($response->error) {
+    drupal_set_message($response->error_message , 'error');
+    $return = FALSE;
+  }
+  elseif ($response->declined) {
+    drupal_set_message('Credit card declined' , 'error');
+    $return = FALSE;
+  }
+
+  if ($response->approved || $response->declined) {
+    // Cancel authorize transaction by using void:
+    // This transaction type can be used to cancel either an original transaction that is not yet settled or an
+    // entire order composed of more than one transaction. A Void prevents the transaction or the order
+    // from being sent for settlement. A Void can be submitted against any other transaction type.
+    $void = new AuthorizeNetAIM($settings['login'], $settings['tran_key']);
+
+    if ($settings['sandbox']) {
+      $void->setSandbox(TRUE);
+    }
+    else {
+      $void->setSandbox(FALSE);
+    }
+
+    $void_response = $void->void($response->transaction_id);
+  }
+
+  return $return;
+}
+
+
+/**
+ * Return path to AuthNet SDK, or FALSE if not found.
+ */
+function commerce_authnet_arb_sdk_path() {
+  static $path = NULL;
+
+  if (!isset($path)) {
+    $path = FALSE;
+    // If Libraries API is installed, we first use that to try and find the
+    // library. Otherwise we manually check a few locations.
+    $search_dirs = array();
+    if (function_exists('libraries_get_path')) {
+      $dir = libraries_get_path('anet_php_sdk');
+      // Confusingly, Libraries API 1.x will return sites/all/libraries/NAME on
+      // failure, while Libraries API 2.x returns FALSE in that case.
+      if ($dir) {
+        $search_dirs[] = $dir;
+      }
+
+    }
+    else {
+      $search_dirs[] = 'sites/all/libraries/anet_php_sdk';
+    }
+
+    foreach ($search_dirs as $dir) {
+      $dir = DRUPAL_ROOT . '/' . $dir;
+      if (is_dir($dir)) {
+        $path = $dir;
+        break;
+      }
+    }
+  }
+
+  if ($path == FALSE) {
+    throw new Exception('Authorize.net SDK not found! Please follow the instructions in commerce_authnet_arb/README.txt.');
+  }
+
+  return $path;
+}
+
+/*
+ * Send a subsription request to Authnet.
+ *
+ * Return a subscription array or show error and return FALSE.
+ */
+function commerce_authnet_arb_create_subscription ($period, $charge, $card, $subscription_settings = array(), $order = NULL) {
+
+  if ($charge['currency_code'] != 'USD') {
+    drupal_set_message('Only USD payments can be processed by recurring payments system.' ,'error');
+    return FALSE;
+  }
+
+  if (!($period['commerce_authnet_arb_period'] == 'days' || $period['commerce_authnet_arb_period'] == 'months')) {
+    drupal_set_message('Please set valid recurring period.' ,'error');
+    return FALSE;
+  }
+
+  $settings = commerce_authnet_arb_settings();
+  require_once commerce_authnet_arb_sdk_path().'/AuthorizeNet.php';
+
+  $subscription                          = new AuthorizeNet_Subscription;
+
+  $subscription->name                    = 'Every '.$period['commerce_authnet_arb_interval_step'].' '.$period['commerce_authnet_arb_period'].
+    ' xxxx'.substr($card['number'], -4).' payment';
+  $subscription->intervalLength          = $period['commerce_authnet_arb_interval_step'];
+  $subscription->intervalUnit            = $period['commerce_authnet_arb_period'];
+  $subscription->startDate               = date('Y-m-d');
+  $subscription->totalOccurrences        = '9999';
+  $subscription->amount                  = $charge['amount']/100;
+  $subscription->creditCardExpirationDate= $card['exp_year'].'-'.$card['exp_month'];
+  if (!empty($card['number'])) {
+    $subscription->creditCardCardNumber  = $card['number'];
+  }
+
+  if (!empty($order) && module_exists('commerce_order')) {
+
+    $subscription->orderInvoiceNumber = $order->order_id;
+    $subscription->orderDescription = 'Build a Menu Membership Subscription';
+    $subscription->customerId = $order->uid;
+    $subscription->customerEmail = $order->mail;
+    if (module_exists('commerce_customer')) {
+      $order_wrapper = entity_metadata_wrapper('commerce_order', $order);
+      if (isset($order_wrapper->commerce_customer_billing)) {
+        // Mapping default commerce profile fields.
+        $name = _split_fullname($order_wrapper->
+          commerce_customer_billing->commerce_customer_address->name_line->value());
+        $subscription->billToFirstName = $name['first_name'];
+        $subscription->billToLastName = $name['last_name'];
+        $subscription->billToAddress = $order_wrapper->
+          commerce_customer_billing->commerce_customer_address->thoroughfare->value();
+        $subscription->billToCity = $order_wrapper->
+          commerce_customer_billing->commerce_customer_address->locality->value();
+        $subscription->billToState = $order_wrapper->
+          commerce_customer_billing->commerce_customer_address->administrative_area->value();
+        $subscription->billToZip = $order_wrapper->
+          commerce_customer_billing->commerce_customer_address->postal_code->value();
+        $subscription->billToCountry = $order_wrapper->
+          commerce_customer_billing->commerce_customer_address->country->value();
+      }
+    }
+  }
+
+  // Override subscription attributes from a argument,
+  // because it has a higher priority.
+  if (!empty($subscription_settings)) {
+    foreach ($subscription_settings as $key => $value) {
+      $subscription->{$key} = $value;
+    }
+  }
+
+  // Create the subscription.
+  $request = new AuthorizeNetARB($settings['login'], $settings['tran_key']);
+  if ($settings['sandbox']) {
+    $request->setSandbox(TRUE);
+  }
+  else {
+    $request->setSandbox(FALSE);
+  }
+
+  if (!empty($order)) {
+    // If RefId included in the request,
+    // this value is included in the response.
+    // Pass order_id to recognize it in response.
+    $request->setRefId($order->order_id);
+  }
+  // Override RefId with passed argument if it's set.
+  if (!empty($subscription_settings['RefId'])) {
+    $request->setRefId($order->order_id);
+  }
+
+  $response = $request->createSubscription($subscription);
+
+  if ($settings['watchdog_all']) {
+    watchdog('commerce_authnet_arb', t('Create subscription request:<br> @var', array('@var' => var_export($request ,TRUE))));
+    watchdog('commerce_authnet_arb', t('Create Subscription response:<br> @var', array('@var' => var_export($response ,TRUE))));
+  }
+
+  if ($response->isError()) {
+    drupal_set_message(t('Recurring payment error: @error',
+      array('@error' => $response->getMessageText())) ,'error');
+    return FALSE;
+  }
+  elseif ($response->isOk()) {
+    // ToDo: create and save a commerce transaction
+    $subscription_['request'] = get_object_vars($subscription);
+    $subscription_['response']['xml'] = $response->response;
+    $subscription_['response']['RefID'] = $response->getRefID();
+    $subscription_['response']['ResultCode'] = $response->getResultCode();
+    $subscription_['response']['SubscriptionId'] = $response->getSubscriptionId();
+    $subscription_['response']['SubscriptionStatus'] = $response->getSubscriptionStatus() ;
+
+    drupal_set_message('Recurring payments is set. First time payment will be charged tomorrow.');
+
+    return $subscription_;
+  }
+
+  drupal_set_message(t('Recurring payment error: @error',
+    array('@error' => 'bad response')) ,'error');
+
+  return FALSE;
+}
+
+/*
+ * Return a sample of silentpost request from AuthNet.
+ * Useful for testing and debugging.
+ */
+function commerce_authnet_arb_get_sample_silentpost_post() {
+  return array (
+    'x_response_code' => '1',
+    'x_response_reason_code' => '1',
+    'x_response_reason_text' => 'This transaction has been approved.',
+    'x_avs_code' => 'Y',
+    'x_auth_code' => 'CDUF4S',
+    'x_trans_id' => '2171129240',
+    'x_method' => 'CC',
+    'x_card_type' => 'Visa',
+    'x_account_number' => 'XXXX0027',
+    'x_first_name' => 'Firstname',
+    'x_last_name' => 'lastname',
+    'x_company' => '',
+    'x_address' => '222 N. Glebe Rd', 'x_city' => 'Arlington', 'x_state' => 'VA', 'x_zip' => '22206',
+    'x_country' => 'US',
+    'x_phone' => '7032224321',
+    'x_fax' => '',
+    'x_email' => 'user@zyxware.com',
+    'x_invoice_num' => '50',
+    'x_description' => '',
+    'x_type' => 'auth_capture',
+    'x_cust_id' => '1618',
+    'x_ship_to_first_name' => '',
+    'x_ship_to_last_name' => '',
+    'x_ship_to_company' => '',
+    'x_ship_to_address' => '',
+    'x_ship_to_city' => '', 'x_ship_to_state' => '', 'x_ship_to_zip' => '',
+    'x_ship_to_country' => '',
+    'x_amount' => '8.00',
+    'x_tax' => '0.00',
+    'x_duty' => '0.00',
+    'x_freight' => '0.00',
+    'x_tax_exempt' => 'FALSE',
+    'x_po_num' => '',
+    'x_MD5_Hash' => '4F75FFEBF90F0BE79FB59139177A3ECF',
+    'x_cvv2_resp_code' => '',
+    'x_cavv_response' => '2',
+    'x_test_request' => 'false',
+    'x_subscription_id' => '1376492',
+    'x_subscription_paynum' => '1',
+  );
+}
+
+/**
+ * Helper function to split the full name
+ * as currently this name is used in the receipt
+ * generated by Authorize.net.
+ *
+ * @params
+ *   $fullname string containing the name of the
+ *   subscriber
+ */
+function _split_fullname($fullname) {
+  $array = explode(' ', $fullname, 2);
+  $name['first_name'] = $array[0];
+  $name['last_name'] = $array[1];
+  return $name;
+}
+
+/**
+ * Implements hook_help().
+ */
+function commerce_authnet_arb_help($path, $arg) {
+  switch ($path) {
+    case 'admin/config/authnet-arb':
+      return '<p>' . t('Configure Authorize.Net merchant details.') . '</p>';
+
+    case 'admin/help#commerce_authnet_arb':
+      return '<h3>' . t('Authorize ARB') . '</h3><p>' . t('This module allows you to integrate Authorize.net
+      with the Drupal Commerce framework. This supports only the Authorize ARB
+      (Recurring billing) for credit card payments and is ideal for sites that
+      support subscriptions. The module supports ARB silent post.') . '</p>';
+  }
+}
+
+/**
+* Implements hook_permission().
+*/
+function commerce_authnet_arb_permission() {
+ return array(
+   'administer authorize arb' => array(
+    'title' => t('Administer Authorize.net ARB settings'),
+    'description' => t('Administer tasks for Authorize.net ARB.'),
+    ),
+  );
+}

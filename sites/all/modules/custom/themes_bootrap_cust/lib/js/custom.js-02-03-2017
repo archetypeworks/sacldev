@@ -1,0 +1,19 @@
+var acc = document.getElementsByClassName("accordion");
+var i;
+
+for (i = 0; i < acc.length; i++) {
+    acc[i].onclick = function(){
+        this.classList.toggle("active");
+        this.nextElementSibling.classList.toggle("show");
+ 	};
+}
+jQuery(document).ready(function(){
+	jQuery("#block-menu-menu-left-sidebar").find("a.active-trail").parent().addClass( "active" );
+	jQuery("#block-menu-menu-left-sidebar").find("a.active").parent().addClass( "active" );	
+	jQuery("#block-menu-menu-left-sidebar").find("li.active").parent().addClass( "show" );
+	jQuery("#block-menu-menu-left-sidebar").find("li.active").next().each(function(){
+		if(jQuery(this).is("ul")){
+			jQuery(this).addClass( "show" );
+		}
+	})
+});

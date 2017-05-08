@@ -1,0 +1,6 @@
+#commerce-checkout-form-login .forget-sec{
+min-height:150px;
+}
+#commerce-checkout-form-checkout .panel-heading {
+    text-transform: capitalize;
+}

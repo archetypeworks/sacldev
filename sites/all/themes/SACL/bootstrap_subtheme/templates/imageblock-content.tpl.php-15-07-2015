@@ -1,0 +1,34 @@
+<?php
+
+/**
+ * @file
+ * Default theme implementation to display image block content.
+ *
+ * Available variables:
+ * - $image: Block image.
+ * - $content: Block content.
+ * - $block: Block object.
+ *
+ * @see template_preprocess()
+ * @see template_preprocess_imageblock_content()
+ */
+ //print_r($block);
+ if($block->data)
+ $block->extractdata=unserialize($block->data);
+ //print_r($block);
+?>
+<?php if ($image): ?>
+          <h3>
+			<span class="circle">
+				<?php print $image ?>
+			</span>
+			<?php if ($block->title): if ($block->title!="<none>"): echo $block->title?><?php endif; endif; ?>
+			<?php if (isset($block->extractdata['description_controll'])): echo '<strong>'.$block->extractdata['description_controll'].'</strong>'; ?><?php endif; ?>
+		</h3>
+<?php endif; ?>
+
+<?php if ($content): ?>
+  <div class="block-body">
+    <?php print $content ?>
+  </div>
+<?php endif; ?>

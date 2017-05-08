@@ -1,0 +1,3 @@
+jQuery(document).ready(function(){
+	console.log("Hi Michael, you can write script here on file /public_html/sites/all/modules/custom/themes_bootrap_cust/lib/js/custom.js, after save this file please goto http://sacleadership.com/admin/config/development/performance and clear all caches.");
+});

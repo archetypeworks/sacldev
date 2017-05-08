@@ -1,0 +1,22 @@
+name = Commerce Authorize.net ARB
+description = "Authorize.Net ARB payment method."
+package = Commerce
+core = 7.x
+dependencies[] = commerce
+dependencies[] = commerce_payment
+dependencies[] = commerce_ui
+dependencies[] = commerce_payment_ui
+dependencies[] = commerce_authnet
+
+; Information added by Drupal.org packaging script on 2016-09-29
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "commerce_authnet_arb"
+datestamp = "1475131440"
+
+; Information added by Drupal.org packaging script on 2016-10-13
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "commerce_authnet_arb"
+datestamp = "1476358022"
+

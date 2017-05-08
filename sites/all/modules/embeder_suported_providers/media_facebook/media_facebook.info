@@ -1,0 +1,15 @@
+name = Media: Facebook
+description = Adds Facebook as a supported media provider.
+package = Media
+core = 7.x
+dependencies[] = media_internet
+
+files[] = includes/MediaFaceBookStreamWrapper.inc
+files[] = includes/MediaInternetFaceBookHandler.inc
+
+; Information added by drupal.org packaging script on 2010-12-06
+version = "7.x-Custom"
+core = "7.x"
+project = "media_facebook"
+datestamp = "1291643744"
+

@@ -1,0 +1,328 @@
+<?php
+
+/**
+ * Implements hook_permission().
+ */
+function date_restrictions_permission() {
+  return array(
+    'bypass date restrictions on edit' => array(
+      'title' => t('Bypass date restrictions on edit'),
+      'description' => t('Bypass date restrictions when editing an entity.'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_hook_info().
+ */
+function date_restrictions_hook_info() {
+  $group = array(
+    'group' => 'date_restrictions',
+  );
+  return array(
+    'date_restrictions_settings'               => $group,
+    'date_restrictions_instance_settings_form' => $group,
+    'date_restrictions_date_popup_settings'    => $group,
+    'date_restrictions_element_validate'       => $group,
+  );
+}
+
+/**
+ * Returns default settings, or completes a settings array with missing keys.
+ */
+function date_restrictions_settings($settings = null) {
+  $default = module_invoke_all('date_restrictions_settings');
+  if (is_null($settings)) {
+    return $default;
+  }
+  return array_replace_recursive($default, $settings);
+}
+
+/**
+ * Implements hook_field_info_alter().
+ *
+ * Adds default settings to instance settings of date fields.
+ */
+function date_restrictions_field_info_alter(&$info) {
+  $settings = date_restrictions_settings();
+  $fields = array('datetime', 'date', 'datestamp');
+  foreach ($fields as $field) {
+    $info[$field]['instance_settings']['restrictions'] = $settings;
+    $info[$field]['instance_settings']['restrictions2'] = $settings;
+  }
+}
+
+/**
+ * Implements hook_date_field_instance_settings_form_alter().
+ *
+ * Add date_restrictions settings form elements.
+ *
+ * @see date_field_instance_settings_form()
+ */
+function date_restrictions_date_field_instance_settings_form_alter(&$form, $context) {
+  $form['restrictions'] = array(
+    '#type' => 'fieldset',
+    '#collapsible' => true,
+    '#collapsed' => false,
+    '#title' => t('Restrictions'),
+    '#fieldset' => 'defaults',
+  );
+  $settings = date_restrictions_settings($context['instance']['settings']['restrictions']);
+  $elements = module_invoke_all('date_restrictions_instance_settings_form', $settings, $context);
+  $form['restrictions'] += $elements;
+
+  if (!empty($context['field']['settings']['todate'])) {
+    $form['restrictions']['#title'] = t('Restrictions on start date');
+    $form['restrictions2'] = array(
+      '#type' => 'fieldset',
+      '#collapsible' => true,
+      '#collapsed' => false,
+      '#title' => t('Restrictions on end date'),
+      '#fieldset' => 'defaults',
+    );
+    // @todo allow modules to provide different restriction types for start/end?
+    // a special case: provide an option for: "Use same restrictions as the start date".
+    $settings = date_restrictions_settings($context['instance']['settings']['restrictions2']);
+    $elements = module_invoke_all('date_restrictions_instance_settings_form', $settings, $context);
+    $form['restrictions2'] += $elements;
+  }
+}
+
+/**
+ * Implements hook_field_widget_form_alter().
+ *
+ * We are copying settings from instance settings to
+ * leaf form elements in cascade, since we are implementing direct integration
+ * with form api via #restrictions property.
+ *
+ * @see date_field_widget_settings_form()
+ * @see date_restrictions_date_combo_process_alter()
+ */
+function date_restrictions_field_widget_form_alter(&$element, &$form_state, $context) {
+  if (in_array($context['field']['type'], array('datetime', 'date', 'datestamp'))) {
+    $element['#restrictions'] = date_restrictions_settings($context['instance']['settings']['restrictions']);
+    $element['#restrictions2'] = date_restrictions_settings($context['instance']['settings']['restrictions2']);
+  }
+}
+
+/**
+ * Implements hook_date_combo_process_alter().
+ *
+ * @see date_restrictions_date_text_process_alter()
+ * @see date_restrictions_date_select_process_alter()
+ * @see date_restrictions_date_popup_process_alter()
+ */
+function date_restrictions_date_combo_process_alter(&$element, $form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+
+  $element['value']['#restrictions'] = $element['#restrictions'];
+  $element['value2']['#restrictions'] = $element['#restrictions2'];
+}
+
+/**
+ * Implements hook_date_text_process_alter().
+ *
+ * Adds our own validation callback.
+ */
+function date_restrictions_date_text_process_alter(&$element, $form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+
+  $element['#element_validate'][] = 'date_restrictions_element_validate';
+}
+
+/**
+ * Implements hook_date_select_process_alter().
+ *
+ * Adds our own validation callback.
+ */
+function date_restrictions_date_select_process_alter(&$element, $form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+
+  $element['#element_validate'][] = 'date_restrictions_element_validate';
+}
+
+/**
+ * Implements hook_date_popup_process_alter().
+ *
+ * - Adds our own validation callback.
+ * - Adds javascript settings to control the available days in the datepicker.
+ */
+function date_restrictions_date_popup_process_alter(&$element, $form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+
+  $element['#element_validate'][] = 'date_restrictions_element_validate';
+}
+
+/**
+ * Validate callback for date form elements with #restrictions.
+ */
+function date_restrictions_element_validate($element, &$form_state, $form) {
+  if (form_get_error($element) || user_access('bypass date restrictions on edit')) return;
+
+  // Convert input date to a proper date object.
+  // This is a crude anticipation to the task performed later in
+  // date_combo_validate().
+  // No timezone conversion is done here.
+  // @todo a way to fix this is doing validation on date_combo element,
+  // instead of date elements. In this case we need also to check form
+  // elements used outside of date_combo.
+  $input = drupal_array_get_nested_value($form_state['input'], $element['#parents']);
+  $function = $element['#type'] . '_input_date';
+  $date = $function($element, $input);
+  if ($date) {
+    $hook = 'date_restrictions_element_validate';
+    foreach (module_implements($hook) as $module) {
+      $function = $module . '_' . $hook;
+      $function($date, $element, $form_state, $form);
+      // Don't try further validations since Drupal will
+      // ignore error messages after the first one.
+      // See @form_error().
+      if (form_get_error($element)) return;
+    }
+  }
+}
+
+/**
+ * Returns instances of given types for the specified bundles.
+ */
+function date_restrictions_get_bundle_instances($bundles, $field_types = array('date', 'datetime', 'datestamp')) {
+  if (!is_array($field_types)) {
+    $field_types = array($field_types);
+  }
+
+  $instances = array();
+  foreach ($bundles as $entity_type => $_bundles) {
+    foreach ($_bundles as $bundle) {
+      $query = db_select('field_config_instance', 'fci');
+      $query->join('field_config', 'fc', 'fci.field_name = fc.field_name');
+      $query
+        ->fields('fci', array('field_name'))
+        ->condition('fc.type', $field_types, 'IN')
+        ->condition('fci.entity_type', $entity_type)
+        ->condition('fci.bundle', $bundle)
+        ->condition('fci.deleted', 0);
+      $result = $query->execute();
+      while ($fci = $result->fetchObject()) {
+        $instance = field_info_instance($entity_type, $fci->field_name, $bundle);
+
+        // Sanitize restrictions settings.
+        $restrictions = isset($instance['settings']['restrictions']) ? $instance['settings']['restrictions'] : NULL;
+        $instance['settings']['restrictions'] = date_restrictions_settings($restrictions);
+        $restrictions = isset($instance['settings']['restrictions2']) ? $instance['settings']['restrictions2'] : NULL;
+        $instance['settings']['restrictions2'] = date_restrictions_settings($restrictions);
+
+        $instances["${entity_type}:${bundle}:$fci->field_name"] = $instance;
+      }
+    }
+  }
+
+  return $instances;
+}
+
+/**
+ * Builds a list of options representing fields.
+ *
+ * The return array is keyed by entity_type:bundle:field_name, with a human
+ * representation of the same information as values.
+ * It is ready to be used as options for a select form element.
+ *
+ * @see date_restrictions_get_bundle_instances().
+ */
+function date_restrictions_get_bundle_instances_as_options($bundles, $field_types = array('date', 'datetime', 'datestamp')) {
+  $options = array();
+
+  $instances = date_restrictions_get_bundle_instances($bundles, $field_types);
+  foreach ($instances as $key => $instance) {
+    $entity_info = entity_get_info($instance['entity_type']);
+    $options[$key] = $entity_info['label'] . ' ' . $entity_info['bundles'][$instance['bundle']]['label'] . ': '. $instance['label'];
+  }
+  return $options;
+}
+
+/**
+ * Checks a restriction type dependencies and return missing ones.
+ *
+ * @param $dependencies
+ */
+function date_restrictions_check_dependencies($dependencies) {
+  $missing = array();
+  foreach ($dependencies as $dep) {
+    if (!module_exists($dep)) {
+      $missing[] = $dep;
+    }
+  }
+
+  return $missing;
+}
+
+/**
+ * Helper function to get leaf children of a form element.
+ *
+ * Recursively descend $element until its leaves.
+ */
+function date_restrictions_element_leaf_children(&$element, $leaves = array()) {
+  $children = element_children($element);
+  foreach ($children as $child) {
+    $c = element_children($element[$child]);
+    if (empty($c)) {
+      $leaves[] = &$element[$child];
+    }
+    else {
+      $leaves = array_merge($leaves, date_restrictions_element_leaf_children($element[$child]));
+    }
+  }
+  return $leaves;
+}
+
+/**
+ * Helper function to get leaf children of a form element.
+ *
+ * Recursively descend $element and found children matching types.
+ */
+function date_restrictions_element_children_of_types(&$element, $types, $matches = array()) {
+  $children = element_children($element);
+  foreach ($children as $child) {
+    if (isset($element[$child]['#type']) && (in_array($element[$child]['#type'], $types))) {
+      $matches[] = &$element[$child];
+    }
+    else {
+      $matches = array_merge($matches, date_restrictions_element_children_of_types($element[$child], $types));
+    }
+  }
+  return $matches;
+}
+
+/**
+ * Helper to get the configured timezone for a field.
+ *
+ * Fallbacks to default timezone.
+ */
+function date_restrictions_db_timezone($element) {
+  return !empty($element['#field']) ? date_get_timezone_db($element['#field']['settings']['tz_handling']) : date_default_timezone();
+}
+
+/**
+ * Helper to instantiate a DateObject based on $element timezone.
+ *
+ * If a date format is given in $format, it will return the formatted date.
+ *
+ * @return DateObject of string with formatted date.
+ */
+function date_restrictions_dateobject($date, $element, $format = NULL) {
+  $db_timezone = date_restrictions_db_timezone($element);
+  $date = new DateObject($date, $db_timezone);
+  date_timezone_set($date, timezone_open($element['#date_timezone']));
+  if ($format) {
+    $date = date_format_date($date, 'custom', $format);
+  }
+  return $date;
+}
+

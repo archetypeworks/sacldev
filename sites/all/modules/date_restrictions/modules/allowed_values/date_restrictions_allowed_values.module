@@ -1,0 +1,124 @@
+<?php
+
+/**
+ * Implements hook_module_implements_alter().
+ */
+function date_restrictions_allowed_values_module_implements_alter(&$implementations, $hook) {
+  if ($hook == 'date_restrictions_element_validate') {
+    $group = $implementations['date_restrictions_allowed_values'];
+    unset($implementations['date_restrictions_allowed_values']);
+    $implementations['date_restrictions_allowed_values'] = $group;
+  }
+}
+
+/**
+ * Implements hook_hook_info().
+ */
+function date_restrictions_allowed_values_hook_info() {
+  $group = array(
+    'group' => 'date_restrictions',
+  );
+  return array(
+    'date_restrictions_allowed_values_info' => $group,
+    'allowed_values_settings_form'          => $group,
+    'allowed_values_settings_validate'      => $group,
+    'allowed_values_page_callback'          => $group,
+    'allowed_values_valid_date'             => $group,
+  );
+}
+
+/**
+ * Returns metadata describing allowed_values restrictions implementations.
+ *
+ * Invokes hook_date_restrictions_allowed_values_info().
+ */
+function date_restrictions_allowed_values_info() {
+  $info = &drupal_static(__FUNCTION__);
+  if (!$info) {
+    $info = array();
+    foreach (module_implements('date_restrictions_allowed_values_info') as $module) {
+      $restrictions = (array) module_invoke($module, 'date_restrictions_allowed_values_info');
+      foreach ($restrictions as $name => $data) {
+        $info[$name] = $data;
+        $info[$name]['module'] = $module;
+        if (!isset($info[$name]['dependencies'])) {
+          $info[$name]['dependencies'] = array();
+        }
+        elseif (!is_array($info[$name]['dependencies'])) {
+          $info[$name]['dependencies'] = array($info[$name]['dependencies']);
+        }
+      }
+    }
+    drupal_alter('date_restrictions_allowed_values_info', $info);
+  }
+
+  return $info;
+}
+
+/**
+ * Implements hook_date_popup_process_alter().
+ *
+ * Adds javascript settings to control the available days in the datepicker.
+ */
+function date_restrictions_allowed_values_date_popup_process_alter(&$element, $form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+  $restrictions = date_restrictions_settings($element['#restrictions']);
+
+  $type = $restrictions['allowed_values']['type'];
+  if ($type != 'disabled') {
+    $info = date_restrictions_allowed_values_info();
+    $remitter = module_invoke($info[$type]['module'], 'allowed_values_remitter_pack', $type, $element, $form_state, $context);
+    if ($remitter) {
+      $url = url('date-restrictions/allowed-values/' . $type . '/' . $remitter);
+      $js_settings[$element['date']['#id']]['settings']['checkDateCallbackUrl'] = $url;
+
+      $element['date']['#attributes']['class'][] = 'date-restrictions-datepicker';
+      drupal_add_js(array('datePopup' => $js_settings), 'setting');
+      drupal_add_js(drupal_get_path('module', 'date_restrictions_allowed_values') . '/date_restrictions_datepicker.js');
+    }
+  }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function date_restrictions_allowed_values_menu() {
+  $items = array();
+  $items['date-restrictions/allowed-values/%/%date_restrictions_allowed_values_remitter/%/%'] = array(
+    'title' => 'Date restrictions allowed values callback',
+    'load arguments' => array(2),
+    'page callback' => 'date_restrictions_allowed_values_page_callback',
+    'page arguments' => array(2, 3, 4, 5),
+    'access callback' => 'date_restrictions_allowed_values_access_callback',
+    'access arguments' => array(2, 3),
+    'type' => MENU_CALLBACK,
+  );
+  return $items;
+}
+
+/**
+ * Autoloader for %date_restrictions_allowed_values_remitter wildcard.
+ */
+function date_restrictions_allowed_values_remitter_load($remitter, $type) {
+  $info = date_restrictions_allowed_values_info();
+  return module_invoke($info[$type]['module'], 'allowed_values_remitter_unpack', $type, $remitter);
+}
+
+/**
+ * Access callback for menu item.
+ */
+function date_restrictions_allowed_values_access_callback($type, $remitter) {
+  $info = date_restrictions_allowed_values_info();
+  return module_invoke($info[$type]['module'], 'allowed_values_access_callback', $type, $remitter);
+}
+
+/**
+ * Menu callback.
+ */
+function date_restrictions_allowed_values_page_callback($type, $remitter, $year, $month) {
+  $info = date_restrictions_allowed_values_info();
+  $dates = module_invoke($info[$type]['module'], 'allowed_values_page_callback', $type, $remitter, $year, $month);
+  return drupal_json_output($dates);
+}

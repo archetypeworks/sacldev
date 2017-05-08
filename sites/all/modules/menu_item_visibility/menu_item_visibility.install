@@ -1,0 +1,79 @@
+<?php
+
+/**
+ * Implements hook_schema() Modified By koushik Naikel.
+ */
+function menu_item_visibility_schema() {
+  $schema['menu_links_visibility_role'] = array(
+    'fields' => array(
+      'mlid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => "The menu link's ID from {menu_links}.mlid.",
+      ),
+      'rid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => "The user's role ID from {users_roles}.rid.",
+      ),
+    ),
+    'primary key' => array('mlid', 'rid'),
+    'indexes' => array(
+      'rid' => array('rid'),
+    ),
+    'foreign keys' => array(
+      'menu_links' => array(
+        'table' => 'menu_links',
+        'columns' => array('mlid' => 'mlid'),
+      ),
+      'role' => array(
+        'table' => 'role',
+        'columns' => array('rid' => 'rid'),
+      ),
+    ),
+  );
+/*For page restriction*/
+
+//$schema=array();
+  $schema['menu_links_visibility_page'] = array(
+    'fields' => array(
+      'mlid' => array(
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+        'description' => "The menu link's ID from {menu_links}.mlid.",
+      ),
+      'pages' => array(
+        'type' => 'text',
+        'not null' => TRUE,
+        'description' => 'Contents of the "Pages" block; contains either a list of paths on which to include/exclude the block or PHP code, depending on "visibility" setting.',
+      ),
+      'visibility' => array(
+        'type' => 'int',
+        'not null' => TRUE,
+        'default' => 0,
+        'size' => 'tiny',
+        'description' => 'Flag to indicate how to show blocks on pages. (0 = Show on all pages except listed pages, 1 = Show only on listed pages, 2 = Use custom PHP code to determine visibility)',
+      ),	  
+    ),
+    'primary key' => array('mlid','visibility'),
+    'indexes' => array(
+      'mlid' => array('mlid'),
+    ),
+    'foreign keys' => array(
+      'menu_links' => array(
+        'table' => 'menu_links',
+        'columns' => array('mlid' => 'mlid'),
+      ),
+/*       'role' => array(
+        'table' => 'role',
+        'columns' => array('rid' => 'rid'),
+      ), */
+    ),
+  );
+  
+  
+  return $schema;
+}

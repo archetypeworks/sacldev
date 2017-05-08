@@ -1,0 +1,273 @@
+<?php
+//define('BLOCK_CUSTOM_ENABLED', 1);
+
+/**
+ * Hides this block by default but lets individual users show it.
+ */
+//define('BLOCK_CUSTOM_DISABLED', 2);
+
+/**
+ * Shows this block on every page except the listed pages.
+ */
+define('LINK_VISIBILITY_NOTLISTED', 0);
+
+/**
+ * Shows this block on only the listed pages.
+ */
+define('LINK_VISIBILITY_LISTED', 1);
+
+/**
+ * Shows this block if the associated PHP code returns TRUE.
+ */
+define('LINK_VISIBILITY_PHP', 2);
+
+
+/**
+ * Implements hook_menu_link_alter().
+ *
+ * In order to have our menu_item_visibility_translated_menu_link_alter()
+ * function called by _menu_link_translate(), we have to manually set this
+ * menu link as 'altered'. Unfortunately this alters all menu links and we need
+ * to figure out a better solution in order to not globally alter all links.
+ */
+function menu_item_visibility_menu_link_alter(&$item) {
+  $item['options']['alter'] = TRUE;
+
+  // Because menu_link_save() may skip calling hook_menu_link_update(), we need
+  // to force it to be invoked. See http://drupal.org/node/1013856.
+  if (!empty($item['mlid'])) {
+    _menu_item_visibility_menu_link_update($item);
+  }
+}
+
+/**
+ * Implements hook_translated_menu_link_alter().
+ */
+function menu_item_visibility_translated_menu_link_alter(&$item, $map) {
+  global $user;
+
+  if (!empty($item['access'])) {
+    // Menu administrators can see all links.
+    if (strpos(current_path(), 'admin/structure/menu/manage/' . $item['menu_name']) === 0 && user_access('administer menu')) {
+      return;
+    }
+
+    // @todo Convert this into a proper hook so modules can extend visibility.
+    $item['visibility'] = menu_item_visibility_load($item['mlid']);
+    if (!empty($item['visibility']['roles']) && !array_intersect($item['visibility']['roles'], array_keys($user->roles))) {
+      $item['access'] = FALSE;
+    }
+	if($item['access'] && (!empty($item['visibility']['path'])) ){
+	//print_r($item);
+		$arg = arg();
+		if($item['visibility']['path']->visibility==2)
+			$item['access'] = php_eval($item['visibility']['path']->pages);
+		else{
+			$pagesarray=explode(PHP_EOL, $item['visibility']['path']->pages);//explode("/\r",$item['visibility']['path']->pages);
+			foreach($pagesarray as &$eachpages){
+				if($eachpages=="<front>"){
+					$eachpages=variable_get('site_frontpage', 'node');
+				}			
+			}
+			if(!empty($arg)){
+			$path=implode('/',$arg);
+			}
+			if($item['visibility']['path']->visibility==0){
+			 $item['access'] = !((@in_array($path,$pagesarray)) || (@in_array($path.chr(13),$pagesarray)));	
+			}
+			if($item['visibility']['path']->visibility==1){
+			 $item['access'] = ((@in_array($path,$pagesarray)) || (@in_array($path.chr(13),$pagesarray)));	
+			}			
+		}//print_r($pagesarray); die;		
+/* 		if($item['visibility']['path']->visibility==0){
+			if($item['visibility']['path']->pages=="<front>"){
+				$item['visibility']['path']->pages=variable_get('site_frontpage', 'node');
+			}
+			if(!empty($arg)){
+			$path=implode('/',$arg);
+			}
+			//echo "<pre>".$path; die;
+			$item['access'] = !($item['visibility']['path']->pages==$path);
+		}
+		if($item['visibility']['path']->visibility==1){
+			if($item['visibility']['path']->pages=="<front>"){
+				$item['visibility']['path']->pages=variable_get('site_frontpage', 'node');
+			}		
+			if(!empty($arg)){
+			$path=implode('/',$arg);
+			}
+			//echo $item['visibility']['path']->pages."=".$path; die;
+			$item['access'] = ($item['visibility']['path']->pages==$path);	
+		} */		
+
+	}
+  }
+}
+
+/**
+ * Load all visibility data for a menu link.
+ */
+function menu_item_visibility_load($mlid) {
+  $visibility = array();
+  if (!empty($mlid)) {
+    $visibility['roles'] = db_query("SELECT rid FROM {menu_links_visibility_role} WHERE mlid = :mlid", array(':mlid' => $mlid))->fetchCol();
+	$visibility['path'] = db_query("SELECT pages,visibility FROM {menu_links_visibility_page} WHERE mlid = :mlid", array(':mlid' => $mlid))->fetchObject();
+	//$visibility['visibility'] = db_query("SELECT visibility FROM {menu_links_visibility_page} WHERE mlid = :mlid", array(':mlid' => $mlid))->fetchField();
+	//print_r($visibility['pages']); die;
+    module_invoke_all('menu_item_visibility_load', $visibility, $mlid);
+  }
+  //print_r($visibility);die;
+  return $visibility;
+}
+
+/**
+ * Implements hook_menu_link_insert()
+ */
+function menu_item_visibility_menu_link_insert($link) {
+  if (!empty($link['roles']) && $roles = array_filter($link['roles'])) {
+    $query = db_insert('menu_links_visibility_role');
+    $query->fields(array('mlid', 'rid'));
+    foreach ($roles as $rid) {
+      $query->values(array('mlid' => $link['mlid'], 'rid' => $rid));
+    }
+	//print_r($query);
+    $query->execute();
+  }
+  unset($query);
+ //if(!empty($link['pages']))
+ //print_r($link); die;
+   if ((!empty($link['pages'])) && isset($link['visibility'])) {
+   
+    $query = db_insert('menu_links_visibility_page');
+    $query->fields(array('mlid', 'pages', 'visibility'));
+
+      $query->values(array('mlid' => $link['mlid'], 'pages' => trim($link['pages']), 'visibility' =>  (int) $link['visibility']));
+//print_r($query); die;
+    $query->execute();
+  } 
+}
+
+/**
+ * Implements hook_menu_link_update()
+ *
+ * Disabled as a hook until http://drupal.org/node/1013856 is fixed.
+ */
+function _menu_item_visibility_menu_link_update($link) {
+if(isset($link['visibility__active_tab']))
+if(($link['visibility__active_tab'] =='edit-path')){
+  db_delete('menu_links_visibility_role')
+    ->condition('mlid', $link['mlid'])
+    ->execute();
+  db_delete('menu_links_visibility_page')
+    ->condition('mlid', $link['mlid'])
+    ->execute();
+  menu_item_visibility_menu_link_insert($link);
+  }
+}
+
+/**
+ * Implements hook_menu_link_delete()
+ */
+function menu_item_visibility_menu_link_delete($link) {
+  db_delete('menu_links_visibility_role')
+    ->condition('mlid', $link['mlid'])
+    ->execute();
+}
+
+/**
+ * Implements hook_user_role_delete()
+ */
+function menu_item_visibility_user_role_delete($role) {
+  db_delete('menu_links_visibility_role')
+    ->condition('rid', $role->rid)
+    ->execute();
+}
+
+/**
+ * Implements hook_form_FORM_ID_alter().
+ */
+function menu_item_visibility_form_menu_edit_item_alter(&$form, &$form_state) {
+  // Visibility settings.
+  $form['visibility_title'] = array(
+    '#type' => 'item',
+    '#title' => t('Visibility settings'),
+  );
+  $form['visibility'] = array(
+    '#type' => 'vertical_tabs',
+    '#attached' => array(
+      'js' => array(
+        'vertical-tabs' => drupal_get_path('module', 'menu_item_visibility') . '/menu_item_visibility.js',
+      ),
+    ),
+  );
+
+  $visibility = menu_item_visibility_load($form['mlid']['#value']);
+  // Per-path visibility.
+  $form['visibility']['path'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Pages'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#group' => 'visibility',
+    '#weight' => 0,
+  );
+  $menu_item=array();
+  if(isset($visibility['path']))
+$menu_item = $visibility['path'];//db_query('SELECT * FROM {block} WHERE module = :module AND delta = :delta', array(':module' => $module, ':delta' => $delta))->fetchObject();
+  $access = user_access('use PHP for settings');
+  if (isset($menu_item->visibility) && $menu_item->visibility == LINK_VISIBILITY_PHP && !$access) {
+    $form['visibility']['path']['visibility'] = array(
+      '#type' => 'value',
+      '#value' => LINK_VISIBILITY_PHP,
+    );
+    $form['visibility']['path']['pages'] = array(
+      '#type' => 'value',
+      '#value' => isset($menu_item->pages) ? $menu_item->pages : '',
+    );
+  }
+  else {
+    $options = array(
+      LINK_VISIBILITY_NOTLISTED => t('All pages except those listed'),
+      LINK_VISIBILITY_LISTED => t('Only the listed pages'),
+    );
+    $description = t("Specify pages by using their paths. Enter one path per line. The '*' character is a wildcard. Example paths are %blog for the blog page and %blog-wildcard for every personal blog. %front is the front page.", array('%blog' => 'blog', '%blog-wildcard' => 'blog/*', '%front' => '<front>'));
+
+    if (module_exists('php') && $access) {
+      $options += array(LINK_VISIBILITY_PHP => t('Pages on which this PHP code returns <code>TRUE</code> (experts only)'));
+      $title = t('Pages or PHP code');
+      $description .= ' ' . t('If the PHP option is chosen, enter PHP code between %php. Note that executing incorrect PHP code can break your Drupal site.', array('%php' => '<?php ?>'));
+    }
+    else {
+      $title = t('Pages');
+    }
+    $form['visibility']['path']['visibility'] = array(
+      '#type' => 'radios',
+      '#title' => t('Show block on specific pages'),
+      '#options' => $options,
+      '#default_value' => isset($menu_item->visibility) ? $menu_item->visibility : LINK_VISIBILITY_NOTLISTED,
+    );
+    $form['visibility']['path']['pages'] = array(
+      '#type' => 'textarea',
+      '#title' => '<span class="element-invisible">' . $title . '</span>',
+      '#default_value' => isset($menu_item->pages) ? $menu_item->pages : '',
+      '#description' => $description,
+    );
+  }
+
+  // Per-role visibility.
+  $form['visibility']['role'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Roles'),
+    '#collapsible' => TRUE,
+    '#collapsed' => TRUE,
+    '#group' => 'visibility',
+    '#weight' => 10,
+  );
+  $form['visibility']['role']['roles'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Show menu link for specific roles'),
+    '#default_value' => isset($visibility['roles']) ? $visibility['roles'] : array(),
+    '#options' => array_map('check_plain', user_roles()),
+    '#description' => t('Show this menu link only for the selected role(s). If you select no roles, the menu link will be visible to all users.'),
+  );
+}

@@ -1,0 +1,30 @@
+<?php
+
+/**
+ * Update field's settings.
+ */
+function date_restrictions_minmax_update_7001() {
+  $query = db_select('field_config_instance', 'fci');
+  $query->join('field_config', 'fc', 'fci.field_name = fc.field_name');
+  $query
+    ->fields('fci', array('entity_type', 'bundle', 'field_name'))
+    ->condition('fc.type', array('date', 'datetime', 'datestamp'), 'IN');
+  $result = $query->execute();
+  while ($r = $result->fetchObject()) {
+    $instance = field_info_instance($r->entity_type, $r->field_name, $r->bundle);
+    if (isset($instance['settings']['restrictions'])) {
+      foreach (array('min', 'max') as $key) {
+        if (isset($instance['settings']['restrictions']['date_' . $key])) {
+          $instance['settings']['restrictions'][$key] = array(
+            'type'     => $instance['settings']['restrictions']['date_' . $key]['enabled']?'interval':'disabled',
+            'interval' => $instance['settings']['restrictions']['date_' . $key],
+            'date'     => null,
+          );
+          unset($instance['settings']['restrictions'][$key]['interval']['enabled']);
+          unset($instance['settings']['restrictions']['date_' . $key]);
+        }
+      }
+    field_update_instance($instance);
+    }
+  }
+}

@@ -1,0 +1,77 @@
+<?php
+/********************Works bellow*****************************/
+function social_link_init(){
+}
+ 
+/**
+ * Implements hook_block_info().
+ */
+function social_link_block_info() {
+  $blocks = array();
+  $blocks['social_links'] = array(
+    'info' => t('Social'),
+  );
+  
+  return $blocks;
+}
+function social_link_block_view($delta='') {
+  $block = array();
+  
+  switch($delta) {
+    case 'social_links' :
+      $block['content'] = social_link_block_view_content();
+      break;
+  }
+  
+  return $block;
+}
+function social_link_block_view_content() {
+	$block = array();
+
+	$query = new EntityFieldQuery();
+	$query->entityCondition('entity_type', 'node')
+	->entityCondition('bundle', 'social_link')
+	->propertyCondition('status', 1);
+	$result = $query->execute();
+
+	if (isset($result['node'])) {
+	  $nodes= array_keys($result['node']);
+	}
+
+	$Start='<div class="sicon">';
+	$endnode=end($nodes);
+	//print_r($nodes);
+	 foreach($nodes as $node){
+			if($endnode==$node)
+			  $end="</div>";
+			  else
+				$end="";
+			$nodedata=node_load($node);
+			//print_r($nodedata);
+			if(!empty($nodedata->field_icon)){
+			$imagepath=file_create_url($nodedata->field_icon['und'][0]['uri']);
+			$img_embed='<img alt="'.$nodedata->field_icon['und'][0]['alt'].'" src="'.$imagepath.'">';
+			}else{
+			$img_embed='';
+			}
+			if(!empty($nodedata->field_link))
+			{
+			//$commenttext='<div class="comments-on-banner"><h1 class="banner-title">'.$nodedata->title.'</h1>'.$nodedata->field_banner_text['und'][0]['value'].'</div>';
+			$socilahtml='<a href="'.$nodedata->field_link['und'][0]['value'].'">'.$img_embed.'</a>';
+			}else{
+			$socilahtml="";
+			}
+
+			$block[] = array(
+					'image' => array(
+					  '#prefix' => '',
+					  '#type' => 'markup',
+					  '#markup' => $Start.$socilahtml.$end,
+					),
+				  );
+			$Start="";
+		}
+
+return $block;
+	  
+}

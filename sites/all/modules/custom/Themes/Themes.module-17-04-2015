@@ -1,0 +1,127 @@
+<?php
+/********************Works bellow*****************************/
+
+function sacl_link($variables) {
+$variables['options']['html'] = TRUE;
+  return '<a href="' . check_plain(url($variables['path'], $variables['options'])) . '"' . drupal_attributes($variables['options']['attributes']) . '>' . ($variables['options']['html'] ? $variables['text'] : check_plain($variables['text'])) . '</a>';
+}
+
+function sacl_form_search_block_form_alter(&$form, &$form_state, $form_id){
+ $form['actions']['submit']['#value'] = t('GO');  
+ print_r($form,true);
+}
+
+function sacl_form_user_login_block_alter(&$form, &$form_state, $form_id) {
+  $form['name']['#weight'] = -10;
+  $form['pass']['#weight'] = -9;
+  $form['actions']['#weight']  = -8; 
+  $markup = l(t('Forgot your password? |'), 'user/password', array('attributes' => array('title' => t('Request new password via e-mail.'))));
+  if (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL)) {
+    $markup .= ' ' . l(t('Register'), 'user/register', array('attributes' => array('title' => t('Create a new user account.'), 'class' => 'register-link')));
+  }
+  $markup = '<div class="clearfix clear"><div class="links_buttom">' . $markup . '</div></div>';
+  $form['links']['#markup'] = $markup;
+}
+/**
+ * Implements hook_block_info().
+ */
+function Themes_block_info() {
+  $blocks = array();
+  $blocks['Banner_block'] = array(
+    'info' => t('Banner'),
+  );
+  
+  return $blocks;
+}
+function Themes_block_view($delta='') {
+  $block = array();
+  
+  switch($delta) {
+    case 'Banner_block' :
+      $block['content'] = Banner_block_view();
+      break;
+  }
+  
+  return $block;
+}
+function Banner_block_view() {
+  $block = array();
+
+  $query = new EntityFieldQuery();
+$query->entityCondition('entity_type', 'node')
+  ->entityCondition('bundle', 'banner')
+  ->propertyCondition('status', 1);
+  $result = $query->execute();
+  //watchdog("koushik",print_r($result, true));
+  //foreach($result['node'] as $node){
+	  //$nodeid[]=array($node[0]);
+	  //}
+	  
+	  
+  //$node[]=$node;
+  
+  
+  //$node[]=10;
+//$nodedata=node_load($node[0]);
+//watchdog("node_data",print_r($nodedata, true));
+if (isset($result['node'])) {
+  $news_items_nids = array_keys($result['node']);
+  $news_items = entity_load('node', $news_items_nids);
+  //watchdog("node_data1",print_r($news_items_nids, true)); //get all banner id 
+}
+  //echo count($news_items_nids);
+  //echo "<div><ul>";
+  //echo $theme_path."======";
+  
+	  for($i=0;$i<=count($news_items_nids)-1;$i++){
+			  //echo $news_items_nids[$i];
+			  $nodedata=node_load($news_items_nids[$i]);
+			  //$nodedata=node_load(11);
+			  //echo "==========".$nodedata->field_banner_img['und'][0]['filename'];
+	  //}
+			  $img = $nodedata->field_banner_img['und'][0]['filename'];
+			  //watchdog("node_data2",print_r($und, true)); //get image name
+			  // Capture the image file path and form into HTML with attributes
+			 //$image_file = file_load(variable_get('block_image_fid', ''));
+			 // $image_path = '';
+			
+			  //if (isset($image_file->uri)) {
+			  //	$image_path = $image_file->uri;
+			  //}
+	
+			  /*$image = array(
+				'path' => ($image_path),
+				'alt' => t('Image description here.'),
+				'title' => t('This is our block image.'),
+				'attributes' => array('class' => 'class_name'),
+			  );*/
+			 //watchdog("banner_block21",print_r($image, true));
+			  // Capture WYSIWYG text from the variable
+			  /*$text = variable_get('text_variable', '');*/
+			
+			  // Block output in HTML with div wrapper
+	
+	  
+				  $block[] = array(
+					'image' => array(
+					  '#prefix' => '',
+					  '#type' => 'markup',
+					  '#markup' => "<li><img src='http://69.175.14.245/sacl/sites/sacl.com/files/".$img."'></li>",
+					),
+					/*'message' => array(
+					  '#type' => 'markup',
+					  '#markup' => $text,
+					  '#suffix' => '',
+					),*/
+				  );
+				//$output[] = "<div><ul>".$block."</ul></div>";
+				  }
+				 //print_r($block[0]['image']);
+				 //echo $output_banner="===".$block[0]['image']."---";
+				  //print_r($output);
+				  //echo "</ul></div>";
+				  //watchdog("promith21",print_r($block, true));
+				  //return array($output); 
+				  return $block;
+	  
+}

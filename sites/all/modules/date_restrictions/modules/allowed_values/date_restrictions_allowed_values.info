@@ -1,0 +1,13 @@
+name = Date Restrictions Allowed Values
+description = API module to enable the restriction of accepted values in date fields based on a set of allowed values.
+core = 7.x
+package = Date/Time
+dependencies[] = date_restrictions
+
+
+; Information added by Drupal.org packaging script on 2015-08-25
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "date_restrictions"
+datestamp = "1440521040"
+

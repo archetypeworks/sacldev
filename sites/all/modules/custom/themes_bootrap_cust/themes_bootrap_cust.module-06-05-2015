@@ -1,0 +1,182 @@
+<?php
+/********************Works bellow*****************************/
+
+/* function sacl_link($variables) {
+$variables['options']['html'] = TRUE;
+  return '<a href="' . check_plain(url($variables['path'], $variables['options'])) . '"' . drupal_attributes($variables['options']['attributes']) . '>' . ($variables['options']['html'] ? $variables['text'] : check_plain($variables['text'])) . '</a>';
+} */
+/* function themes_bootrap_cust_form_search_block_form_alter(&$form, &$form_state, $form_id){
+ $form['actions']['submit']['#value'] = t('GO');  
+  //print_r($form);
+  $form['#attributes']['class']="form-inline";
+  $form['search_block_form']['#prefix'] = '<div class="form-group">';
+  $form['search_block_form']['#suffix'] = '</div>'; 
+  $form['actions']['#prefix'] = '<div class="form-group action">';
+  $form['actions']['#suffix'] = '</div>';   
+ print_r($form,true);
+} */
+function  themes_bootrap_cust_init(){
+ drupal_add_js(drupal_get_path('module', 'themes_bootrap_cust') . '/lib/js/css_browser_selector.js',array('scope' => 'header','weight' =>1));
+}
+function bootstrap_subtheme_menu_tree__menu_product_nav($variables) {
+  return '<ul class="nav navbar-nav">' . $variables['tree'] . '</ul>';
+}
+function bootstrap_subtheme_form_search_block_form_alter(&$form, &$form_state, $form_id){
+ $form['actions']['submit']['#value'] = t('GO'); 
+  $form['#attributes']['class']="form-inline"; 
+  $form['search_block_form']['#theme_wrappers']=array();
+  $form['search_block_form']['#prefix']='<div class="form-group">';
+  $form['search_block_form']['#suffix']='</div>'; 
+  $form['actions']['submit']['#attributes']['class'][0]='btn-primary';   
+  //print_r($form);
+ print_r($form,true);
+}
+function bootstrap_subtheme_css_alter(&$css){
+//unset($css['//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css']);
+//print_r($css);
+}
+function bootstrap_subtheme_js_alter(&$js){
+//unset($js['//netdna.bootstrapcdn.com/bootstrap/3.0.2/js/bootstrap.min.js']);
+//print_r($css);
+}
+function bootstrap_subtheme_form_user_login_block_alter(&$form, &$form_state, $form_id) {
+  $form['name']['#weight'] = -10;
+  $form['pass']['#weight'] = -9;
+  $form['pass']['#prefix'] = '<div class="form-group">';
+  $form['pass']['#suffix'] = '</div>';
+  $form['name']['#prefix'] = '<div class="form-group">';
+  $form['name']['#suffix'] = '</div>';  
+  //$form['actions']['#prefix'] = '<div class="form-group action">';
+  //$form['actions']['#suffix'] = '</div>';  
+  //$form['#attributes']['class']="form-inline";
+  // $form['actions']['#attributes']['class'] = 'btn-primary'; 
+   unset($form['actions']['submit']['#attributes']['class']);
+   $form['actions']['submit']['#attributes']['class'][] = 'btn-primary';
+  $form['actions']['#weight']  = -8; 
+  $markup = l(t('Forgot your password? |'), 'user/password', array('attributes' => array('title' => t('Request new password via e-mail.'), 'class' => 'forget-pass')));
+  if (variable_get('user_register', USER_REGISTER_VISITORS_ADMINISTRATIVE_APPROVAL)) {
+    $markup .= ' ' . l(t('Register'), 'user/register', array('attributes' => array('title' => t('Create a new user account.'), 'class' => 'register-link')));
+  }
+  $markup = '<div class="forget-sec">' . $markup . '</div>';
+  $form['links']['#markup'] = $markup;
+ print_r($form,true);
+}
+/**
+ * Implements hook_block_info().
+ */
+function themes_bootrap_cust_block_info() {
+  $blocks = array();
+  $blocks['Banner_block'] = array(
+    'info' => t('Banner'),
+  );
+  
+  return $blocks;
+}
+function themes_bootrap_cust_block_view($delta='') {
+  $block = array();
+  
+  switch($delta) {
+    case 'Banner_block' :
+      $block['content'] = Banner_block_view();
+      break;
+  }
+  
+  return $block;
+}
+function Banner_block_view() {
+global $base_url;
+global $user;
+
+	$block = array();
+
+	$query = new EntityFieldQuery();
+	$query->entityCondition('entity_type', 'node')
+	->entityCondition('bundle', 'banner')
+	->propertyCondition('status', 1);
+	$result = $query->execute();
+
+	if (isset($result['node'])) {
+	  $nodes= array_keys($result['node']);
+	}
+
+	$Start='<div class="banner-sec">';
+	$endnode=end($nodes);
+	 foreach($nodes as $node){
+			if($endnode==$node)
+			  $end="</div>";
+			  else
+				$end="";
+			$nodedata=node_load($node);
+			if(!empty($nodedata->field_banner_img)){
+			$imagepath=file_create_url($nodedata->field_banner_img['und'][0]['uri']);
+			$img_embed='<img alt="'.$nodedata->field_banner_img['und'][0]['alt'].'" src="'.$imagepath.'">';
+			}else{
+			$img_embed='';
+			}
+			if(!empty($nodedata->field_banner_text))
+			{
+			//$commenttext='<div class="comments-on-banner"><h1 class="banner-title">'.$nodedata->title.'</h1>'.$nodedata->field_banner_text['und'][0]['value'].'</div>';
+			$commenttext='<div class="message"><div class="container"><div class="title">'.$nodedata->title.'</div><p>'.$nodedata->field_banner_text['und'][0]['value'].'</p></div></div>';
+			}else{
+			$commenttext="";
+			}
+			if(empty($commenttext) && empty($img_embed)){
+				if (node_access("update", $nodedata, $user) === TRUE) {
+				$commenttext='<div class="message"><div class="container"><div class="title"><a href="'.$base_url.'/node/'.$nodedata->nid.'/edit">Please Configure This Banner</a></div></div></div>';
+				}else{
+						$commenttext='<div class="message"><div class="container"><div class="title">Coming Soon !!</div></div></div>';
+				}
+			}
+			$block[] = array(
+					'image' => array(
+					  '#prefix' => '',
+					  '#type' => 'markup',
+					  '#markup' => $Start.'<div class="item">'.$img_embed,
+					),
+					'message' => array(
+					  '#type' => 'markup',
+					  '#markup' => $commenttext.'</div>'.$end,
+					  '#suffix' => '',
+					),					
+				  );
+			$Start="";
+		}
+		/***********Start Owlcarasal*************/
+ drupal_add_js(drupal_get_path('module', 'themes_bootrap_cust') . '/lib/js/owl.carousel.min.js',array('scope' => 'footer','weight' =>6));
+drupal_add_js ('jQuery(document).ready( function ()
+{
+
+
+
+jQuery(".banner-sec").owlCarousel({
+    loop:true,
+    margin:0,
+ autoHeight:false,
+ autoplay:true,
+ autoplayTimeout:1000,
+    autoplayHoverPause:true,
+    responsiveClass:true,
+    responsive:{
+        0:{
+            items:1,
+        },
+        600:{
+            items:1,
+        },
+        1000:{
+            items:1,
+        }
+    }
+})
+
+
+
+});',array('type' => 'inline','scope' => 'footer','weight' =>10)); 
+
+
+
+//drupal_add_css(drupal_get_path('module', 'themes-bootrap-cust'). '/lib/css/flexslider.css', array('weight' => '-50'));	
+/*****************End flexslider***************/	
+return $block;
+	  
+}

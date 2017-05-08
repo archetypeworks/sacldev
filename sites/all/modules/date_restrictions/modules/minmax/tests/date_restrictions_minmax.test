@@ -1,0 +1,233 @@
+<?php
+
+/**
+ * @file
+ * Tests for date_restrictions_minmax.module.
+ */
+
+/**
+ * Test "minmax" restrictions, based on static relative/fixed limits.
+ */
+class DateRestrictionsStaticMinMaxTestCase extends DateRestrictionsBase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Min/Max relative/fixed static',
+      'description' => 'Test Min/Max restrictions, based on static relative/fixed limits.',
+      'group' => 'Date Restrictions',
+    );
+  }
+
+  function setUp() {
+    $modules = array('date_restrictions_minmax', 'date', 'interval');
+    parent::setUp($modules);
+  }
+
+  /**
+   * Date within fixed min-max date limits.
+   *
+   * Test YYYY-04-12 is within [YYYY-04-01 YYYY-04-14]
+   */
+  public function testDateWithinLimits() {
+    $year = date('Y');
+    $restrictions = array(
+      'min' => array(
+        'type' => 'date',
+        'date' => array(
+          'year' => $year,
+          'month' => 4,
+          'day' => 1,
+        ),
+      ),
+      'max' => array(
+        'type' => 'date',
+        'date' => array(
+          'year' => $year,
+          'month' => 4,
+          'day' => 14,
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testDateWithinLimits'));
+  }
+  public function _testDateWithinLimits($context) {
+    $year = date('Y');
+    $start = array(
+      'year'   => $year,
+      'month'  => 4,
+      'day'    => 12,
+    );
+    $edit = $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+    $this->assertText($edit['title'], 'Date is within minmax fixed limits (static).');
+  }
+
+  /**
+   * Fixed min date.
+   *
+   * Test YYYY-04-12 is not valid for YYYY-04-14 min restriction.
+   */
+  public function testDateLowerThanMin() {
+    $year = date('Y');
+    $restrictions = array(
+      'min' => array(
+        'type' => 'date',
+        'date' => array(
+          'year' => $year,
+          'month' => 4,
+          'day' => 14,
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testDateLowerThanMin'));
+  }
+  public function _testDateLowerThanMin($context) {
+    $year = date('Y');
+    $start = array(
+      'year'   => $year,
+      'month'  => 4,
+      'day'    => 12,
+    );
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+
+    $date = $this->newDateObject($context['restrictions']['min']['date'], NULL, FALSE);
+    $message = t('Dates before @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates before min date are not allowed (static).');
+  }
+
+  /**
+   * Fixed max date.
+   *
+   * Test YYYY-04-12 is not valid for YYYY-04-01 max restriction.
+   */
+  public function testDateGreaterThanMax() {
+    $year = date('Y');
+    $restrictions = array(
+      'max' => array(
+        'type' => 'date',
+        'date' => array(
+          'year' => $year,
+          'month' => 4,
+          'day' => 1,
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testDateGreaterThanMax'));
+  }
+  public function _testDateGreaterThanMax($context) {
+    $year = date('Y');
+    $start = array(
+      'year'   => $year,
+      'month'  => 4,
+      'day'    => 12,
+    );
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+
+    $date = $this->newDateObject($context['restrictions']['max']['date'], NULL, FALSE);
+    $message = t('Dates after @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates after max date are not allowed (static).');
+  }
+
+  /**
+   * Date within fixed min-max interval limits.
+   *
+   * Test today+2 is within [today+1 today+3] interval.
+   */
+  public function testIntervalWithinLimits() {
+    $restrictions = array(
+      'min' => array(
+        'type' => 'interval',
+        'interval' => array(
+          'interval' => 1,
+          'period' => 'day'
+        ),
+      ),
+      'max' => array(
+        'type' => 'interval',
+        'interval' => array(
+          'interval' => 3,
+          'period' => 'day'
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testIntervalWithinLimits'));
+  }
+  public function _testIntervalWithinLimits($context) {
+    $date = $this->newDateObject('now + 2 days');
+    $start = array(
+      'year'   => $date->format('Y'),
+      'month'  => $date->format('n'),
+      'day'    => $date->format('d'),
+    );
+    $edit = $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+    $this->assertText($edit['title'], 'Date is within minmax relative limits (static).');
+  }
+
+  /**
+   * Fixed min interval.
+   *
+   * Test today is not valid for today+1 min restriction.
+   */
+  public function testIntervalLowerThanMin() {
+    $restrictions = array(
+      'min' => array(
+        'type' => 'interval',
+        'interval' => array(
+          'interval' => 1,
+          'period' => 'day'
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testIntervalLowerThanMin'));
+  }
+  public function _testIntervalLowerThanMin($context) {
+    // Set the current time (hour:minute) rather than the default time in this
+    // date, in order to test date_restrictions's exact validation error.
+    // This will fail if the seconds pass from :59 to :00 and the minute
+    // increases while running this test. This has a low probability we can
+    // live with.
+    $date = $this->newDateObject('now', NULL, FALSE);
+    $start = array(
+      'year'   => $date->format('Y'),
+      'month'  => $date->format('n'),
+      'day'    => $date->format('d'),
+    );
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+    interval_apply_interval($date, $context['restrictions']['min']['interval']);
+    $message = t('Dates before @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates before min interval are not allowed (static).');
+  }
+
+  /**
+   * Fixed max interval.
+   *
+   * Test today+2 is not valid for today+1 max restriction.
+   */
+  public function testIntervalGreaterThanMax() {
+    $restrictions = array(
+      'max' => array(
+        'type' => 'interval',
+        'interval' => array(
+          'interval' => 1,
+          'period' => 'day'
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testIntervalGreaterThanMax'));
+  }
+  public function _testIntervalGreaterThanMax($context) {
+    $now = $this->newDateObject('now', NULL, FALSE);
+    $date = clone($now);
+    $date->modify('+ 2 days');
+    $start = array(
+      'year'   => $date->format('Y'),
+      'month'  => $date->format('n'),
+      'day'    => $date->format('d'),
+    );
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start);
+
+    $date = clone($now);
+    interval_apply_interval($date, $context['restrictions']['max']['interval']);
+    $message = t('Dates after @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates after max interval are not allowed (static).');
+  }
+}
+

@@ -1,0 +1,14 @@
+name = calander_ajax_custom
+description = disable content of calender when click a day.
+dependencies[] = Calendar
+package = Date/Time
+core = 7.x
+stylesheets[all][] = css/calendar_multiday.css
+
+
+; Information added by Drupal.org packaging script on 2014-10-14
+version = "7.x-3.5"
+core = "7.x"
+project = "calander_ajax_custom"
+datestamp = "1413299943"
+

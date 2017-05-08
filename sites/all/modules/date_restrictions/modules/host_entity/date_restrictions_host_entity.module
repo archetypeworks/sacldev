@@ -1,0 +1,402 @@
+<?php
+
+const HOST_ENTITY_KEY = 'date_restrictions_host_entity';
+
+/**
+ * Implements hook_hook_info().
+ */
+function date_restrictions_host_entity_hook_info() {
+  $group = array(
+    'group' => 'date_restrictions',
+  );
+  return array(
+    'date_restrictions_host_entity_source_fields' => $group,
+    'host_entity_after_build'                     => $group,
+  );
+}
+
+/**
+ * @defgroup host_entity_helpers Helpers for restrictions based in host-entity.
+ * @{
+ *
+ * Those functions are helpers for other modules
+ * implementing restrictions based on values from the
+ * host entity.
+ * They are not callbacks invoked directly by
+ * date_restrictions, since this module doesn't implement
+ * any date restriction by itself.
+ */
+
+/**
+ * Implements allowed_values_remitter_pack callback.
+ *
+ * @param $remitter
+ * @return array
+ */
+function date_restrictions_host_entity_allowed_values_remitter_pack($type, $element, $form_state, $context) {
+  $instance = $element['#instance'];
+  $remitter[] = $instance['entity_type'];
+  $remitter[] = $instance['bundle'];
+  $remitter[] = $instance['field_id'];
+  $remitter[] = $form_state['complete form']['#build_id'];
+  return implode(':', $remitter);
+}
+
+/**
+ * Implements allowed_values_remitter_unpack callback.
+ *
+ * @param $remitter
+ * @return array
+ */
+function date_restrictions_host_entity_allowed_values_remitter_unpack($type, $remitter) {
+  list($entity_type, $bundle, $field_id, $form_build_id) = explode(':', $remitter);
+  $field = field_info_field_by_id($field_id);
+  $instance = field_info_instance($entity_type, $field['field_name'], $bundle);
+  $form_state = form_state_defaults();
+  $form = form_get_cache($form_build_id, $form_state);
+  return array(
+    'values' => $form_state[HOST_ENTITY_KEY]['values'],
+    'settings' => $instance['settings']['restrictions']['allowed_values'][$type],
+  );
+}
+
+/**
+ * @} End of "defgroup host_entity_helpers"
+ */
+
+/**
+ * @defgroup host_entity_forms Hook into form generation.
+ * @{
+ *
+ * Hook into different form generation steps to allow for
+ * host entity restrictions.
+ */
+
+/**
+ * Implements hook_form_alter().
+ *
+ * If this is an entity edit form, add ajax to update
+ * date-restricted fields (targets) when source field
+ * changes.
+ */
+function date_restrictions_host_entity_form_alter(&$form, &$form_state, $form_id) {
+  if (isset($form['#entity_type'], $form['#entity'])) {
+    if (!isset($form_state[HOST_ENTITY_KEY]['sources'])) {
+      $sources = $targets = array();
+
+      // Find which date fields have a restriction based on the host entity.
+      $bundles[$form['#entity_type']] = array($form['#bundle']);
+      $instances = date_restrictions_get_bundle_instances($bundles);
+      foreach ($instances as $key => $instance) {
+        if ((isset($form[$instance['field_name']]))) {
+          date_restrictions_host_entity_inspect($instance, $sources, $targets);
+        }
+      }
+      // Allow other modules to alter sources and targets.
+      $context = array(
+        'form' => $form,
+        'form_state' => $form_state,
+      );
+      drupal_alter('date_restrictions_host_entity_fields', $sources, $targets, $context);
+
+      // Verify sources and targets are present in the form.
+      foreach (array_keys($sources) as $field_name) {
+        if (!isset($form[$field_name])) {
+          unset($sources[$field_name]);
+        }
+      }
+      foreach (array_keys($targets) as $field_name) {
+        if (!isset($form[$field_name])) {
+          unset($targets[$field_name]);
+        }
+      }
+
+      // Store for usage in subsequent calls.
+      $form_state[HOST_ENTITY_KEY]['sources'] = $sources;
+      $form_state[HOST_ENTITY_KEY]['targets'] = $targets;
+    }
+
+    // Ajax.
+    // @todo add a checkbox in dr settings to enable ajax conditionally.
+    $sources = $form_state[HOST_ENTITY_KEY]['sources'];
+    foreach ($sources as $source_field_name => $source) {
+      if ($source['ajax']) {
+        $leaves = date_restrictions_element_leaf_children($form[$source_field_name]);
+        foreach ($leaves as &$leaf) {
+          $leaf['#ajax'] = array(
+            'triggering_field_name' => $source_field_name,
+            'callback' => 'date_restrictions_host_entity_source_field_change_callback',
+          );
+          // @see date_restrictions_host_entity_date_combo_process_alter().
+          $leaf['#limit_validation_errors'] = array();
+          $leaf['#limit_validation_errors'][] = array($source_field_name);
+          foreach ($source['targets'] as $target_field_name) {
+            $leaf['#limit_validation_errors'][] = array($target_field_name);
+          }
+        }
+      }
+    }
+
+    $targets = $form_state[HOST_ENTITY_KEY]['targets'];
+    foreach (array_keys($targets) as $target_field_name) {
+      if (!isset($form[$target_field_name]['#prefix'])) {
+        $wrapper = $target_field_name . '-' . HOST_ENTITY_KEY;
+        $form[$target_field_name]['#prefix'] = '<div id="' . $wrapper . '">';
+        $form[$target_field_name]['#suffix'] = '</div>';
+      }
+    }
+
+    $form['#after_build'][] = 'date_restrictions_host_entity_form_after_build';
+  }
+}
+
+/**
+ * Inspect date restrictions settings and extract source and target fields.
+ */
+function date_restrictions_host_entity_inspect($instance, &$sources, &$targets) {
+  // @todo check end date is used. This info is not declared in the instance but the field.
+  $field = field_info_field($instance['field_name']);
+  foreach (array_keys($field['columns']) as $column) {
+    _date_restrictions_host_entity_inspect($instance, $sources, $targets, $column);
+  }
+}
+
+function _date_restrictions_host_entity_inspect($instance, &$sources, &$targets, $column) {
+  static $info = FALSE;
+  if (!$info) {
+    // @todo fix this by implementing date_restrictions_info().
+    if (module_exists('date_restrictions_allowed_values')) {
+      $info['allowed_values'] = date_restrictions_allowed_values_info();
+    }
+    if (module_exists('date_restrictions_minmax')) {
+      $info['min'] = $info['max'] = date_restrictions_minmax_info();
+    }
+  }
+
+  $restrictions = ($column == 'value') ? $instance['settings']['restrictions'] : $instance['settings']['restrictions2'];
+
+  $field_name = $instance['field_name'];
+  foreach ($restrictions as $type => $settings) {
+    $restriction = $settings['type'];
+
+    // Skip if:
+    //  - there's no restriction.
+    //  - the type of restriction is not available.
+    //  - the restriction is not available.
+    if (($restriction == 'disabled') || !isset($info[$type]) || !isset($info[$type][$restriction])) {
+      continue;
+    }
+
+    $type_info = $info[$type][$restriction];
+    if (in_array('date_restrictions_host_entity', $type_info['dependencies'])) {
+      // Give the provider module an opportunity to resolve source fields.
+      $module = $type_info['module'];
+      $hook = 'date_restrictions_host_entity_source_fields';
+      if (module_hook($module, $hook)) {
+        $function = $module  . '_' . $hook;
+        $source_fields = $function($settings[$restriction]);
+      }
+      else {
+        list(,,$source_field) = explode(':', $settings[$restriction]['field']);
+        $source_fields = array($source_field);
+      }
+      // Populate sources and targets array.
+      foreach ($source_fields as $sf) {
+        if (!isset($sources[$sf])) {
+          $sources[$sf] = array(
+            'ajax' => TRUE,
+            'targets' => array(),
+          );
+        }
+        $sources[$sf]['targets'][$field_name] = $field_name;
+      }
+      $targets[$field_name][$column][$type] = $type_info;
+    }
+  }
+}
+
+/**
+ * Implements hook_date_combo_process_alter().
+ *
+ * Date module copies #ajax definition to leaf elements, as expected.
+ * Sadly, #limit_validation_errors is not copied over to the children.
+ *
+ * We're settings that key in date_restrictions_host_entity_form_alter()
+ * to tell Drupal to not discard the validation errors we may set to the
+ * target elements.
+ *
+ * So we need to copy #limit_validation_errors to the leaf elements that
+ * will trigger ajax callbacks.
+ */
+function date_restrictions_host_entity_date_combo_process_alter(&$element, $form_state, $context) {
+  if (isset($element['#limit_validation_errors'])) {
+    foreach ($element['#columns'] as $column) {
+      $element[$column]['#limit_validation_errors'] = $element['#limit_validation_errors'];
+    }
+  }
+}
+
+/**
+ * Implements after build callback.
+ *
+ * Here we accomplish two things:
+ *  - Anticipate validation of source field elements.
+ *  - Invocation of hook_host_entity_after_build().
+ *
+ * The goal of anticipated validation is to have source field values
+ * already processed when validation of the target elements is done,
+ * since validation of target elements is based on the current values
+ * of source fields.
+ * Such an anticipation is done in the first call to this function.
+ * That is: when it is invoked from form_get_cache(), and before
+ * drupal_validate_form().
+ * Later in form processing, if there's no validation errors,
+ * this callback is invoked again, from drupal_rebuild_form().
+ * At that time, all validation is already done and we do nothing
+ * to this respect.
+ * Note that _form_validate() will mark elements as validated,
+ * so Drupal won't validate them again, and there's no data inconsistency
+ * or performance hit at all.
+ *
+ * OTOH, invocation of hook_host_entity_after_build() gives modules an
+ * opportunity to alter form elements once source values are ready.
+ * Rationale: those alterations are usually done at element processing,
+ * but at that time source fields are not validated.
+ */
+function date_restrictions_host_entity_form_after_build($form, &$form_state) {
+  static $validated = false;
+
+  // Anticipated validation.
+  if (!$validated) {
+    // field_collection, and perhaps others, needs to know
+    // at validation time that the form is being submitted.
+    // @see field_collection_field_widget_embed_validate().
+    // @see form_builder().
+    if (!empty($form_state['triggering_element']['#executes_submit_callback'])) {
+      $form_state['submitted'] = TRUE;
+    }
+
+    $values = array();
+    $sources = $form_state[HOST_ENTITY_KEY]['sources'];
+    foreach (array_keys($sources) as $source_field_name) {
+      $element = &$form[$source_field_name];
+      // Validate the source element in case it is not already validated.
+      if (($form_state['process_input']) && (!isset($element['#validated']) || !$element['#validated'])) {
+        _form_validate($element, $form_state);
+      }
+      // Check if any of the sub element in the source element failed validation.
+      $fail = false;
+      $leaves = date_restrictions_element_leaf_children($form[$source_field_name]);
+      foreach ($leaves as &$leaf) {
+        $errors = form_get_error($leaf);
+        if ($errors) {
+          $fail = true;
+          break;
+        }
+      }
+      // Only store validated values.
+      if (!$fail) {
+        $path = $form['#parents'];
+        $path[] = $source_field_name;
+        if (!empty($form[$source_field_name]['#language'])) {
+          $path[] = $form[$source_field_name]['#language'];
+        }
+        $value = drupal_array_get_nested_value($form_state['values'], $path);
+        $values[$source_field_name] = $value;
+      }
+    }
+    $form_state[HOST_ENTITY_KEY]['values'] = $values;
+    $validated = true;
+  }
+
+  // Invoke hook_host_entity_after_build().
+  $targets = $form_state[HOST_ENTITY_KEY]['targets'];
+  foreach ($targets as $field_name => $columns) {
+    if (!$form[$field_name]['#access']) continue;
+
+    foreach ($columns as $column => $restrictions) {
+      foreach ($restrictions as $restriction => $info) {
+        $module = $info['module'];
+        $hook = 'host_entity_after_build';
+        if (module_hook($module, $hook)) {
+          $function = $module . '_' . $hook;
+          $element = &$form[$field_name];
+          $function($element, $column, $restriction, $form_state);
+        }
+      }
+    }
+  }
+
+  return $form;
+}
+
+/**
+ * Implements ajax callback.
+ *
+ * // @todo only those with ajax option enabled in settings.
+ */
+function date_restrictions_host_entity_source_field_change_callback($form, $form_state) {
+  // Obtain the target fields affected by a change in the source field.
+  $triggering_element = $form_state['triggering_element'];
+  $field_name = $triggering_element['#ajax']['triggering_field_name'];
+  $targets = $form_state[HOST_ENTITY_KEY]['sources'][$field_name]['targets'];
+
+  // Validation errors are set to leaf elements, addressed by
+  // wtf - "field_name][und][0][value".
+  // Here we get all errors by the known prefix, and prepend them to
+  // the corresponding main form element.
+  $form_errors = form_get_errors();
+
+  $commands = array();
+  foreach ($targets as $field_name) {
+    if (!$form[$field_name]['#access']) continue;
+
+    $wrapper = $field_name . '-' . HOST_ENTITY_KEY;
+    $commands[] = ajax_command_replace('#' . $wrapper, render($form[$field_name]));
+
+    if ($form_errors) {
+      $messages = array();
+
+      foreach ($form_errors as $key => $msg) {
+        if (strpos($key, $field_name) === 0) {
+          $messages[] = $msg;
+        }
+      }
+      // Copied from theme_status_message().
+      if (count($messages)) {
+        $output = "<div class=\"messages error\">\n";
+        $output .= '<h2 class="element-invisible">' .t('Error message') . "</h2>\n";
+        if (count($messages) > 1) {
+          $output .= " <ul>\n";
+          foreach ($messages as $message) {
+            $output .= '  <li>' . $message . "</li>\n";
+          }
+          $output .= " </ul>\n";
+        }
+        else {
+          $output .= $messages[0];
+        }
+        $output .= "</div>\n";
+        $commands[] = ajax_command_prepend('#' . $wrapper, $output);
+      }
+    }
+  }
+
+  // Suppress messages.
+  drupal_get_messages();
+
+  // This may be useful for debugging, but #console selector is set
+  // by drupal_set_message(), so we needed to do dpm() in form_alter,
+  // or after_build to enable this. Also comment out above line.
+  //$commands[] = ajax_command_append('#console', theme('status_messages'));
+
+  return array(
+    '#type' => 'ajax',
+    '#commands' => $commands,
+  );
+}
+
+/**
+ * @} End of "defgroup host_entity_forms"
+ */
+

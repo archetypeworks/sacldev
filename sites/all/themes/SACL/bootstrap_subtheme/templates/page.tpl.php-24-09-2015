@@ -1,0 +1,402 @@
+<?php
+/**
+ * @file
+ * Default theme implementation to display a single Drupal page.
+ *
+ * The doctype, html, head and body tags are not in this template. Instead they
+ * can be found in the html.tpl.php template in this directory.
+ *
+ * Available variables:
+ *
+ * General utility variables:
+ * - $base_path: The base URL path of the Drupal installation. At the very
+ *   least, this will always default to /.
+ * - $directory: The directory the template is located in, e.g. modules/system
+ *   or themes/bartik.
+ * - $is_front: TRUE if the current page is the front page.
+ * - $logged_in: TRUE if the user is registered and signed in.
+ * - $is_admin: TRUE if the user has permission to access administration pages.
+ *
+ * Site identity:
+ * - $front_page: The URL of the front page. Use this instead of $base_path,
+ *   when linking to the front page. This includes the language domain or
+ *   prefix.
+ * - $logo: The path to the logo image, as defined in theme configuration.
+ * - $site_name: The name of the site, empty when display has been disabled
+ *   in theme settings.
+ * - $site_slogan: The slogan of the site, empty when display has been disabled
+ *   in theme settings.
+ *
+ * Navigation:
+ * - $main_menu (array): An array containing the Main menu links for the
+ *   site, if they have been configured.
+ * - $secondary_menu (array): An array containing the Secondary menu links for
+ *   the site, if they have been configured.
+ * - $breadcrumb: The breadcrumb trail for the current page.
+ *
+ * Page content (in order of occurrence in the default page.tpl.php):
+ * - $title_prefix (array): An array containing additional output populated by
+ *   modules, intended to be displayed in front of the main title tag that
+ *   appears in the template.
+ * - $title: The page title, for use in the actual HTML content.
+ * - $title_suffix (array): An array containing additional output populated by
+ *   modules, intended to be displayed after the main title tag that appears in
+ *   the template.
+ * - $messages: HTML for status and error messages. Should be displayed
+ *   prominently.
+ * - $tabs (array): Tabs linking to any sub-pages beneath the current page
+ *   (e.g., the view and edit tabs when displaying a node).
+ * - $action_links (array): Actions local to the page, such as 'Add menu' on the
+ *   menu administration interface.
+ * - $feed_icons: A string of all feed icons for the current page.
+ * - $node: The node object, if there is an automatically-loaded node
+ *   associated with the page, and the node ID is the second argument
+ *   in the page's path (e.g. node/12345 and node/12345/revisions, but not
+ *   comment/reply/12345).
+ *
+ * Regions:
+ * - $page['help']: Dynamic help text, mostly for admin pages.
+ * - $page['highlighted']: Items for the highlighted content region.
+ * - $page['content']: The main content of the current page.
+ * - $page['sidebar_first']: Items for the first sidebar.
+ * - $page['sidebar_second']: Items for the second sidebar.
+ * - $page['header']: Items for the header region.
+ * - $page['footer']: Items for the footer region.
+ *
+ * @see bootstrap_preprocess_page()
+ * @see template_preprocess()
+ * @see template_preprocess_page()
+ * @see bootstrap_process_page()
+ * @see template_process()
+ * @see html.tpl.php
+ *
+ * @ingroup themeable
+ */
+ global $base_path;
+?>
+<!-- start page-tpl-php css for profile view no result-->
+<?php if (!user_is_anonymous()){ ?>
+<style>
+.not-logged-in-message{
+display:none;
+} 
+</style>
+<?php } ?>
+<?php if (user_is_anonymous()){ ?>
+<style>
+.profile-not-available-message{
+display:none;
+}
+.not-logged-in-message{
+cursor:pointer;
+}
+</style>
+<script>
+<?php $arg1= arg(1); $arg2=arg(2); if(arg(0)=="user" && (!empty($arg1)) && arg(1)!="login" && empty($arg2)) {?>
+jQuery(document).ready(function(){
+	jQuery('[data-target=#login-modal]').click();
+	jQuery(".not-logged-in-message").click(function(){
+	jQuery('[data-target=#login-modal]').click();
+	});
+});
+<?php } ?>
+</script>
+<?php } ?>
+<!-- end page-tpl-php css for profile view no result-->
+<header id="header">
+  <div class="container">
+    <div class="row">
+      <div class="col-sm-8">
+		<div class="row">
+		 <div class="col-sm-6">
+				<?php if (($logo) ||(!empty($site_slogan))): ?>
+					<a class="logo" href="<?php print $base_path; ?>">
+					<?php if ($logo): ?>
+						<img src="<?php print $logo; ?>" alt="<?php print t('Home'); ?>" />
+					<?php endif; ?>	
+						<?php if (!empty($site_slogan)): ?>
+							<p class="lead"><?php print $site_slogan; ?></p>
+				<?php endif; ?>	
+					</a>
+				<?php endif; ?>
+			  <?php if (!empty($site_name)): ?>
+			  <a class="name navbar-brand" href="<?php print $front_page; ?>" title="<?php print t('Home'); ?>"><?php print $site_name; ?></a>
+			  <?php endif; ?>
+			</div>
+			 <div class="col-sm-6">
+			 
+				  <?php if (!empty($page['heder_right_logo'])): ?>
+					<?php print render($page['heder_right_logo']); ?>
+				  <?php endif; ?>			 
+			 </div>
+		</div>
+	  </div>
+      <div class="col-sm-4">
+          <?php if (!empty($page['heder_right_social'])): ?>
+            <?php print render($page['heder_right_social']); ?>
+          <?php endif; ?>
+        <!--<div class="search">
+          <form class="form-inline">
+            <div class="form-group">
+              <label class="sr-only">search</label>
+              <input class="form-control" placeholder="" type="text">
+            </div>
+            <button type="submit" class="btn btn-primary">GO</button>
+          </form>
+        </div>-->
+      </div>
+    </div>
+  </div>
+      <?php if (!empty($site_name)): ?>
+      <a class="name navbar-brand" href="<?php print $front_page; ?>" title="<?php print t('Home'); ?>"><?php print $site_name; ?></a>
+      <?php endif; ?>
+  <nav class="navbar navbar-default">
+    <div class="container">
+      <div class="row">
+		<div class="Menu-icon-prefix prefix-sufix">
+			  <?php if (!empty($page['menu_icon_prefix'])): ?>
+				<?php print render($page['menu_icon_prefix']); ?>
+			  <?php endif; ?>
+		</div> 	  
+<div class="navbar-header">
+          <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#bs-example-navbar-collapse-1"> <span class="sr-only">Toggle navigation</span> <span class="icon-bar"></span> <span class="icon-bar"></span> <span class="icon-bar"></span> </button>
+          <a class="navbar-brand" href="#">Menu</a> </div>
+
+    <?php if (!empty($primary_nav) || !empty($secondary_nav) || !empty($page['navigation'])): ?>
+      <div class="navbar-collapse collapse"  id="bs-example-navbar-collapse-1">
+
+          <?php if (!empty($primary_nav)): ?>
+            <?php print render($primary_nav); ?>
+          <?php endif; ?>
+          <?php if (!empty($secondary_nav)): ?>
+            <?php print render($secondary_nav); ?>
+          <?php endif; ?>
+          <?php if (!empty($page['navigation'])): ?>
+            <?php print render($page['navigation']); ?>
+          <?php endif; ?>
+    <?php endif; ?>	
+
+	        <!-- /.navbar-collapse --> 
+      </div>
+		<div class="Menu-icon-suffix prefix-sufix">
+			  <?php if (!empty($page['menu_icon_suffix'])): ?>
+				<?php print render($page['menu_icon_suffix']); ?>
+			  <?php endif; ?>
+		</div> 	  
+	  </div>
+    </div>
+    <!-- /.container-fluid --> 
+	        </nav>
+
+  
+	<?php if (!empty($page['navigation'])): ?>
+
+		<?php //print render($page['navigation']); ?>
+
+	<?php endif; ?>
+ 
+</header>
+<div class="main-container">
+  <div class="section-2 clearfix">
+   <!-- <div class="region region-header">
+      <div class="container">
+        <div class="member-login">
+          <h3><span class="circle"><img src="images/login-icon.png" alt="login-icon"></span> members login area <strong>Members login only</strong></h3>
+          <div class="form-group">
+            <label>Username:</label>
+            <input type="text" class="form-control"  placeholder="Username">
+          </div>
+          <div class="form-group">
+            <label>password:</label>
+            <input type="password" class="form-control"  placeholder="password">
+          </div>
+          <button type="submit" class="btn btn-primary">Login</button>
+          <div class="forget-sec"><a href="#">forget password?</a> | <a href="#">register</a> </div>
+        </div>
+      </div>
+      <div class="banner-sec">
+        <div class="item">
+          <div class="message">
+            <div class="container">
+              <div class="title">Lorem ipsum dolor sit amet</div>
+              <p>impetus dissentiet cu est, nec at zril scriptorem, iudico aperiam nam at ad vim laoreet civibus invidunt, pro ea veniam nusquam accumsan, eos eu inermis volumus ex in intellegam comprehensam.</p>
+            </div>
+          </div>
+          <img src="images/banner.jpg" alt="banner"> </div>
+        <div class="item">
+          <div class="message">
+            <div class="container">
+              <div class="title">Lorem ipsum dolor sit amet</div>
+              <p>impetus dissentiet cu est, nec at zril scriptorem, iudico aperiam nam at ad vim laoreet civibus invidunt, pro ea veniam nusquam accumsan, eos eu inermis volumus ex in intellegam comprehensam.</p>
+            </div>
+          </div>
+          <img src="images/banner.jpg" alt="banner"> </div>
+        <div class="item">
+          <div class="message">
+            <div class="container">
+              <div class="title">Lorem ipsum dolor sit amet</div>
+              <p>impetus dissentiet cu est, nec at zril scriptorem, iudico aperiam nam at ad vim laoreet civibus invidunt, pro ea veniam nusquam accumsan, eos eu inermis volumus ex in intellegam comprehensam.</p>
+            </div>
+          </div>
+          <img src="images/banner.jpg" alt="banner"> </div>
+      </div>
+    </div>-->
+
+        <?php if (!empty($page['header'])): ?>
+            <?php print render($page['header']); ?>	
+		<?php endif; ?>
+  </div>
+ 
+
+
+  <div class="classraw clearfix">
+	 <div class="container">
+      <div class="row">
+			<?php if (!empty($page['sidebar_first'])): ?>
+			  <aside class="col-sm-3" role="complementary">
+				<?php print render($page['sidebar_first']); ?>
+			  </aside>  <!-- /#sidebar-first -->
+			<?php endif; ?>
+
+			<section<?php print $content_column_class; ?>>
+			  <?php if (!empty($page['highlighted'])): ?>
+				<div class="highlighted jumbotron"><?php print render($page['highlighted']); ?></div>
+			  <?php endif; ?>
+			  <?php if ((!empty($breadcrumb)) && !(arg(0)=="user" || arg(0)=="users") ): print $breadcrumb; endif;?>
+			  <!--<a id="main-content"></a>-->
+			  <?php if (!empty($tabs) && !(arg(0)=="user" || arg(0)=="users") ): ?>
+				<?php print render($tabs); ?>
+			  <?php endif; ?>			  
+			  <?php print render($title_prefix); ?>
+			  <?php if ((arg(0)=="user" || arg(0)=="users")  && !empty($title)): ?>
+				<h1 class="page-header <?php echo (arg(0)=="user" || arg(0)=="users")?"my-profile-header":""; ?>"><?php print $title; ?></h1>
+			  <?php endif; ?>
+			  <?php print render($title_suffix); ?>
+			  <?php print $messages; ?>
+			  <?php if (!empty($page['help'])): ?>
+				<?php print render($page['help']); ?>
+			  <?php endif; ?>
+			  <?php if (!empty($action_links)): ?>
+				<ul class="action-links"><?php print render($action_links); ?></ul>
+			  <?php endif; ?>
+			   <?php if ((!empty($page['content'])) || (!empty($page['content_bottom_right']) || !empty($page['content_bottom_left'])) || (!empty($page['content_bottom_right_upper']) || !empty($page['content_bottom_left_upper']))): ?>
+					<?php print render($page['content']); ?>
+					<!--<div class="height70"></div>-->
+
+<?php if (!empty($page['content_bottom_right_upper']) || !empty($page['content_bottom_left_upper'])): ?>
+  <div id="wrapper row content-bottom-upper">
+  <div class="container region region-content join-sec col-sm-12">
+	<?php 
+			//if((!empty($page['content_bottom_left_upper'])) || (!empty($page['content_bottom_right_upper']))):
+	?>
+			  <div class="row">
+				 <?php if (!empty($page['content_bottom_left_upper'])): ?>
+					 <?php print render($page['content_bottom_left_upper']); ?>
+				<?php endif; ?>	
+				 <?php if (!empty($page['content_bottom_right_upper'])): ?>
+					 <?php print render($page['content_bottom_right_upper']); ?>
+				<?php endif; ?>	
+			  </div>
+			<?php //endif; ?>
+	</div>	
+   <!-- <div class="container region region-content join-sec">
+      <div class="row">
+        <div class="col-sm-5">
+          <h3><span class="circle"><img src="images/join.png" alt="Join SACL!"></span> Join SACL!</h3>
+          <p>Phasellus laoreet velit et tempor auctor justo arcu luctus arcu eu vehicula diam neque vitae elit vivamus commodo sapien vel consectetur consequat risus libero elementum mi, at porta lorem lacus in ante mauris euismod mattis nibh aliquam turpis augue gravida venenatis aliquet acommodo idlacus maecenas pharetra cursus lectus quis suscipit nam tristique consequat dui </p>
+          <button type="button" class="btn btn-info">join now</button>
+        </div>
+        <div class="col-sm-5 col-sm-offset-2 started-sec">
+          <h3><span class="circle"><img src="images/join.png" alt="Get started"></span> Get started <strong>Get Started Today with the Remote Club Assistant.</strong></h3>
+          <p>Phasellus laoreet velit et tempor auctor justo arcu luctus arcu eu vehicula diam neque vitae elit vivamus commodo sapien vel consectetur consequat risus libero elementum mi, at porta lorem lacus in ante mauris euismod mattis nibh aliquam turpis augue gravida venenatis aliquet acommodo idlacus maecenas pharetra cursus lectus quis suscipit nam tristique consequat dui </p>
+          <button type="button" class="btn btn-primary">get started today</button>
+        </div>
+      </div>
+	<div>
+  </div>
+ </div> -->
+</div>
+<?php endif; ?>
+
+					
+<?php if (!empty($page['content_bottom_right']) || !empty($page['content_bottom_left'])): ?>
+  <div id="wrapper row content-bottom-lower">
+  <div class="container region region-content join-sec col-sm-12">
+	<?php 
+			//if((!empty($page['content_bottom_left'])) || (!empty($page['content_bottom_right']))):
+	?>
+			  <div class="row">
+				 <?php if (!empty($page['content_bottom_left'])): ?>
+					 <?php print render($page['content_bottom_left']); ?>
+				<?php endif; ?>	
+				 <?php if (!empty($page['content_bottom_right'])): ?>
+					 <?php print render($page['content_bottom_right']); ?>
+				<?php endif; ?>	
+			  </div>
+			<?php //endif; ?>
+	</div>	
+   <!-- <div class="container region region-content join-sec">
+      <div class="row">
+        <div class="col-sm-5">
+          <h3><span class="circle"><img src="images/join.png" alt="Join SACL!"></span> Join SACL!</h3>
+          <p>Phasellus laoreet velit et tempor auctor justo arcu luctus arcu eu vehicula diam neque vitae elit vivamus commodo sapien vel consectetur consequat risus libero elementum mi, at porta lorem lacus in ante mauris euismod mattis nibh aliquam turpis augue gravida venenatis aliquet acommodo idlacus maecenas pharetra cursus lectus quis suscipit nam tristique consequat dui </p>
+          <button type="button" class="btn btn-info">join now</button>
+        </div>
+        <div class="col-sm-5 col-sm-offset-2 started-sec">
+          <h3><span class="circle"><img src="images/join.png" alt="Get started"></span> Get started <strong>Get Started Today with the Remote Club Assistant.</strong></h3>
+          <p>Phasellus laoreet velit et tempor auctor justo arcu luctus arcu eu vehicula diam neque vitae elit vivamus commodo sapien vel consectetur consequat risus libero elementum mi, at porta lorem lacus in ante mauris euismod mattis nibh aliquam turpis augue gravida venenatis aliquet acommodo idlacus maecenas pharetra cursus lectus quis suscipit nam tristique consequat dui </p>
+          <button type="button" class="btn btn-primary">get started today</button>
+        </div>
+      </div>
+	<div>
+  </div>
+ </div> -->
+</div>
+<?php endif; ?>
+
+
+					
+<?php if ($is_front && !empty($page['content_promot_frontpage_area'])): ?>
+  <div id="wrapper row promot-frontpage-area">
+  <div class="container region region-content join-sec col-sm-12">
+	<?php 
+			//if((!empty($page['content_bottom_left'])) || (!empty($page['content_bottom_right']))):
+	?>
+			  <div class="row">
+				 <?php if ($is_front && !empty($page['content_promot_frontpage_area'])): ?>
+					 <?php print render($page['content_promot_frontpage_area']); ?>
+				<?php endif; ?>	
+			  </div>
+			<?php //endif; ?>
+	</div>
+</div>
+<?php endif; ?>
+
+			   <?php endif; ?>			   		   
+			  <?php if (!empty($page['content_bottom'])): ?>
+			  <div class="height70"></div>
+				 <?php print render($page['content_bottom']); ?>
+			<?php endif; ?>	  
+			</section>
+
+			<?php if (!empty($page['sidebar_second'])): ?>
+			  <aside class="col-sm-3" role="complementary">
+				<?php print render($page['sidebar_second']); ?>
+			  </aside>  <!-- /#sidebar-second -->
+			<?php endif; ?>
+		</div>
+	 </div>
+  </div> 
+  <?php if (!empty($page['element_invisible'])): ?>
+	  <div class="element-invisible">
+		<?php print render($page['element_invisible']); ?>
+	  </div>
+  <?php endif; ?>
+<footer id="footer">
+    <?php if (!empty($page['footer_top'])): ?>
+	 <?php print render($page['footer_top']); ?>
+    <?php endif; ?>	 
+    <?php if (!empty($page['footer_bottom'])): ?>
+	 <?php print render($page['footer_bottom']); ?>
+    <?php endif; ?>	 
+</footer>

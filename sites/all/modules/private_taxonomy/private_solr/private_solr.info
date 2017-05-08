@@ -1,0 +1,14 @@
+name = Private Solr
+description = "Private taxonomy facets for Apache Solr."
+dependencies[] = private_taxonomy:private_taxonomy
+dependencies[] = facetapi:facetapi
+dependencies[] = drupal:system (>=7.40)
+package = Taxonomy
+core = 7.x
+
+; Information added by Drupal.org packaging script on 2016-12-15
+version = "7.x-1.8"
+core = "7.x"
+project = "private_taxonomy"
+datestamp = "1481815694"
+

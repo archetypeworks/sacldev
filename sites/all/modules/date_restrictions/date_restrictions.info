@@ -1,0 +1,17 @@
+name = Date Restrictions
+description = Allows to set restrictions on accepted values in date fields.
+dependencies[] = date
+package = Date/Time
+core = 7.x
+php = 5.3
+
+; Tests
+files[] = tests/date_restrictions_base.test
+
+
+; Information added by Drupal.org packaging script on 2015-08-25
+version = "7.x-1.x-dev"
+core = "7.x"
+project = "date_restrictions"
+datestamp = "1440521040"
+

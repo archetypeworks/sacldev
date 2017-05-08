@@ -1,0 +1,216 @@
+<?php
+/********************Works bellow*****************************/
+
+function sacl_link($variables) {
+$variables['options']['html'] = TRUE;
+  return '<a href="' . check_plain(url($variables['path'], $variables['options'])) . '"' . drupal_attributes($variables['options']['attributes']) . '>' . ($variables['options']['html'] ? $variables['text'] : check_plain($variables['text'])) . '</a>';
+}
+
+function sacl_form_search_block_form_alter(&$form, &$form_state, $form_id){
+
+watchdog('By Promith', print_r($form,true));
+//$form['search_block_form']['#attributes']['value'] =t('GO');
+ $form['actions']['submit']['#value'] = t('GO');  
+print_r($form,true);
+}
+
+//function hook_block_view_banner_alter(&$data, $block) {
+  // This code will only run for a specific block. For example, if MODULE_DELTA
+  // in the function definition above is set to "mymodule_somedelta", the code
+  // will only run on the "somedelta" block provided by the "mymodule" module.
+
+  // Change the title of the "somedelta" block provided by the "mymodule"
+  // module.
+  //watchdog('By Promith', print_r($data,true));
+ // $data['subject'] = t('New title of the block');
+  //print_r($data,true);
+//}
+
+//function theme_sacl_banner() {
+//	watchdog('By Promith1', print_r($form,true));
+ // return '<span>' . t('Powered by <a href="@poweredby">Drupal</a>', array('@poweredby' => 'https://www.drupal.org')) . '</span>';
+//}
+
+//function banner_block_info() {
+//  $blocks['banner'] = array(
+//    'info' => t('Login Link'),
+//    'status' => TRUE,
+//    'region' => 'top_banner',
+//    'visibility' => BLOCK_VISIBILITY_PHP,
+//    'pages' => '<?php global $user; if ($user->uid == 0) return TRUE; else return FALSE; '
+//  );
+//watchdog('By Promith', print_r($blocks,true));
+//print_r($blocks,true);
+//}
+
+//function print_block_test($region = 'top_banner', $block_id = 3) {
+//	watchdog('By Promith', print_r($blocks,true));
+//  $renderable_block = t('Block Not Found');
+//  $output = '';
+//  
+//  $block_list = block_list($region);
+//
+//
+//  foreach($block_list as $block) {
+//   if ($block->bid == $block_id) {
+//      $renderable_block=  _block_get_renderable_array(array($block));
+//      $output = drupal_render($renderable_block);
+//      break;
+//   }
+//  }
+//
+//
+//  return $output;
+//}
+
+function themes_block_info() {
+  $blocks['banner'] = array(
+    'info' => t('Administrative block title'),
+    'cache' => DRUPAL_NO_CACHE,
+  );
+  return $blocks;
+}
+ 
+/**
+ * Implements hook_block_view().
+ */
+function themes_block_view($delta = 3) {
+  $block = array();
+  switch ($delta) {
+    case 'banner':
+      $block['subject'] = t('Block Title');
+      $block['content'] = t('Hello World!');
+      break;
+  }
+  watchdog('By Promith', print_r($blocks,true));
+  return $block;
+}
+//- See more at: http://redcrackle.com/blog/how-create-block-drupal-7#sthash.pyiwQSjU.dpuf
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/*
+function Themes_search_block_form_alter(&$form, &$form_state, $form_id) {
+watchdog('Koushik 2ndst',$print_r($form,true));
+$form['search_block_form']['#default_value'] = t('search'); // Set a default value for the textfield
+$form['search_block_form']['#attributes']['placeholder'] = t( 'Search' ); // Set a Place Holder for the textfield
+$form['actions']['submit']['#value'] = t('GO!'); // Change the text on the submit button
+watchdog('Koushik 1st',print_r($form,true));
+
+} 
+*/
+  
+
+/*******************Not Works bellow**********************/
+
+function betches_preprocess_page(&$vars, $hook) {
+  $head_elements['system_meta_content_type']['#attributes'] = array(
+    'charset' => 'utf-8'
+  );
+  //print_r($head_elements);
+}
+function betches_page_alter(&$page){
+//print_r($page);
+}
+function betches_links__system_main_menu1($variables) {
+$link = $variables['links'];
+
+  $html = '                   <div id="main-menu" class="navigation top_nav">
+                    	<ul id="main-menu-links" class="links clearfix">';
+  //$html .= "<ul>\n";
+
+
+  foreach ($variables['links'] as $link) {
+
+  /************************
+  *echo url( $link['href'], array('absolute' => true, 'alias' => false ));
+  *url() er den funtion som bruges til at hive den rene url sti ud.
+  ************************/
+
+           $html .= "<li>";
+
+      $html .= '<a href="'.url( $link['href'], array('alias' => true )).'">' .    $link['title']. '</a>';
+          $html .= "</li>\n";
+  }
+
+  $html .= "  </ul>\n";
+  $html .= "</div>\n";
+
+  echo $html;//die;
+}
+
+/*******************Writing code to check works or not**********************/
+//http://drupal.stackexchange.com/questions/49650/how-to-display-user-login-in-a-popup
+//http://drupal.stackexchange.com/questions/16211/drupal-7-user-register-form-in-overlay-on-page-load
+
+//function Themes_form_FORM_search_block_form_alter(&$form, &$form_state, $form_id) {
+//return($form); 
+  // Modification for the form with the given form ID goes here. For example, if
+  // FORM_ID is "user_register_form" this code would run only on the user
+  // registration form.
+
+  // Add a checkbox to registration form about agreeing to terms of use.
+  /*$form['terms_of_use'] = array(
+    '#type' => 'checkbox',
+    '#title' => t("I agree with the website's terms and conditions."),
+    '#required' => TRUE,
+  );*/
+//}
+/* creation by MITH */
+//function betches_form_FORM_search_block_form_alter(&$form, &$form_state, $form_id) {
+//  // Modification for the form with the given form ID goes here. For example, if
+//  // FORM_ID is "user_register_form" this code would run only on the user
+//  // registration form.
+//
+//  // Add a checkbox to registration form about agreeing to terms of use.
+//  $form['terms_of_use'] = array(
+//    '#type' => 'checkbox',
+//    '#title' => t("I agree with the website's terms and conditions."),
+//    '#required' => TRUE,
+//  );
+//}
+
+/* function betches_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'search_block_form') {
+    $form['search_block_form']['#attributes']['placeholder'] = t('Search');
+  }
+} */
+
+
+
+/* creation by MITH */

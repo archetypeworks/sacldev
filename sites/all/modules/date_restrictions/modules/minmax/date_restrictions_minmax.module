@@ -1,0 +1,80 @@
+<?php
+
+/**
+ * Implements hook_hook_info().
+ */
+function date_restrictions_minmax_hook_info() {
+  $group = array(
+    'group' => 'date_restrictions',
+  );
+  return array(
+    'date_restrictions_minmax_info'  => $group,
+    'minmax_date_popup_settings'     => $group,
+    'minmax_settings_form'           => $group,
+    'minmax_settings_validate'       => $group,
+    'minmax_restriction_date'        => $group,
+  );
+}
+
+/**
+ * Returns metadata describing minmax restrictions implementations.
+ *
+ * Invokes hook_date_restrictions_minmax_info().
+ */
+function date_restrictions_minmax_info() {
+  $info = &drupal_static(__FUNCTION__);
+  if (!$info) {
+    $info = array();
+    foreach (module_implements('date_restrictions_minmax_info') as $module) {
+      $restrictions = (array) module_invoke($module, 'date_restrictions_minmax_info');
+      foreach ($restrictions as $name => $data) {
+        $info[$name] = $data;
+        $info[$name]['module'] = $module;
+        if (!isset($info[$name]['dependencies'])) {
+          $info[$name]['dependencies'] = array();
+        }
+        elseif (!is_array($info[$name]['dependencies'])) {
+          $info[$name]['dependencies'] = array($info[$name]['dependencies']);
+        }
+      }
+    }
+    drupal_alter('date_restrictions_minmax_info', $info);
+  }
+
+  return $info;
+}
+
+/**
+ * Implements hook_date_popup_process_alter().
+ *
+ * - Adds our own validation callback.
+ * - Adds javascript settings to control the available days in the datepicker.
+ */
+function date_restrictions_minmax_date_popup_process_alter(&$element, &$form_state, $context) {
+  if (empty($element['#restrictions'])) {
+    return;
+  }
+  $restrictions = date_restrictions_settings($element['#restrictions']);
+
+  $js_settings = array();
+  $info = date_restrictions_minmax_info();
+  foreach (array('min', 'max') as $limit) {
+    $type = $restrictions[$limit]['type'];
+    if ($type != 'disabled') {
+      $module = $info[$type]['module'];
+      $hook = 'minmax_date_popup_settings';
+      if (module_hook($module, $hook)) {
+        $function = $module . '_' . $hook;
+        $value = $function($type, $limit, $restrictions[$limit][$type], $element, $form_state, $context);
+        if ($value) {
+          $js_settings[$element['date']['#id']]['settings'][$limit . 'Date'] = $value;
+        }
+      }
+    }
+  }
+
+  if (count($js_settings)) {
+    drupal_add_js(array('datePopup' => $js_settings), 'setting');
+  }
+}
+

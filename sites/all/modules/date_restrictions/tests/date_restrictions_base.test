@@ -1,0 +1,168 @@
+<?php
+
+/**
+ * @file
+ * Tests for date_restrictions.module.
+ */
+
+/**
+ * Base class for Date Restrictions tests.
+ */
+abstract class DateRestrictionsBase extends DateFieldBasic {
+  private $date_field_types = array('date', 'datestamp', 'datetime');
+  private $date_widget_types = array('date_select', 'date_popup', 'date_text');
+  protected $date_input_format = 'd/m/Y - H:i';
+  protected $date_default_hour = '18';
+  protected $date_default_minute = '15';
+  protected $date_tz_handling = 'site';
+
+  /**
+   * Creates a field for each date field type.
+   */
+  function setUp() {
+    parent::setUp();
+
+    // DateFieldBasic::setUp() doesn't accept modules as arguments.
+    $args = func_get_args();
+    $modules = $args[0];
+    $modules[] = 'date_restrictions';
+    if ($modules) {
+      $success = module_enable($modules, TRUE);
+      $this->assertTrue($success, t('Enabled modules: %modules', array('%modules' => implode(', ', $modules))));
+    }
+
+    foreach ($this->date_field_types as $field_type) {
+      $field_name = "field_${field_type}";
+      $options = array(
+        'label' => $field_name,
+        'field_name' => $field_name,
+        'field_type' => $field_type,
+        'input_format' => $this->date_input_format,
+        'tz_handling' => $this->date_tz_handling,
+      );
+      $this->createDateField($options);
+    }
+  }
+
+  /**
+   * Tests a restrictions on every combination of field types and widget.
+   */
+  function runTests($restrictions, $restrictions2, $callback) {
+    foreach ($this->date_field_types as $field_type) {
+      foreach ($this->date_widget_types as $widget_type) {
+        $field_name = "field_${field_type}";
+
+        // Set widget type and restrictions for field instance.
+        $instance = field_info_instance('node', $field_name, 'story');
+        $instance['widget']['type'] = $widget_type;
+        $instance['settings']['restrictions'] = $restrictions;
+        $instance['settings']['restrictions2'] = $restrictions2;
+        field_update_instance($instance);
+
+        $context = array(
+          'field_name'    => $field_name,
+          'field_type'    => $field_type,
+          'widget_type'   => $widget_type,
+          'restrictions'  => $restrictions,
+          'restrictions2' => $restrictions2,
+        );
+        call_user_func($callback, $context);
+
+        // Unset restrictions.
+        $instance = field_info_instance('node', $field_name, 'story');
+        unset($instance['settings']['restrictions']);
+        unset($instance['settings']['restriction2']);
+        field_update_instance($instance);
+      }
+    }
+  }
+
+  /**
+   * Post a node with a date field populated.
+   */
+  function postNode($field_name, $field_type, $widget_type, $start, $end = NULL, $edit = array()) {
+    // Complete date arrays with missing parts.
+    $defaults = array(
+      'hour'   => $this->date_default_hour,
+      'minute' => $this->date_default_minute,
+    );
+    $start += $defaults;
+    if (!is_null($end)) {
+      $end += $defaults;
+    }
+
+    // Build POST data array.
+    $edit['title'] = $this->randomName(8);
+    $parents = "${field_name}[und][0]";
+    if (!is_null($end)) {
+      $edit["${parents}['show_todate']"] = TRUE;
+    }
+
+    // Add date values based on widget type.
+    if ($widget_type == 'date_select') {
+      foreach ($start as $key => $value) {
+        $edit[$parents . '[value][' . $key . ']'] = $value;
+      }
+      if (!is_null($end)) {
+        foreach ($end as $key => $value) {
+          $edit[$parents . '[value2][' . $key . ']'] = $value;
+        }
+      }
+    }
+    else {
+      // Both date_text and date_popup have a similar format.
+      $date = $start['day'] . '/' . $start['month'] . '/' . $start['year'];
+      $time = $start['hour'] . ':' . $start['minute'];
+      if (!is_null($end)) {
+        $date2 = $end['day'] . '/' . $end['month'] . '/' . $end['year'];
+        $time2 = $end['hour'] . ':' . $end['minute'];
+      }
+
+      if ($widget_type == 'date_text') {
+        $edit[$parents . '[value][date]'] = $date . ' - ' . $time;
+        if (!is_null($end)) {
+          $edit[$parents . '[value2][date]'] = $date2 . ' - ' . $time2;
+        }
+      }
+      elseif ($widget_type == 'date_popup') {
+        $edit[$parents . '[value][date]'] = $date;
+        $edit[$parents . '[value][time]'] = $time;
+        if (!is_null($end)) {
+          $edit[$parents . '[value2][date]'] = $date2;
+          $edit[$parents . '[value2][time]'] = $time2;
+        }
+      }
+    }
+
+    $this->drupalPost('node/add/story', $edit, t('Save'));
+    return $edit;
+  }
+
+  function newDateObject($date, $tz = NULL, $force_default_time = TRUE) {
+    if (is_null($tz)) {
+      $tz = date_default_timezone();
+    }
+    $date = new DateObject($date, $tz);
+    // Date module fails to set granularity for some dates ("now +2 days",..).
+    // Enforce granularity to avoid WTFs.
+    $date->addGranularity('year');
+    $date->addGranularity('month');
+    $date->addGranularity('day');
+
+    if ($force_default_time) {
+      // @todo contribute this to date module.
+      $date->setTime($this->date_default_hour, $this->date_default_minute);
+      $date->addGranularity('hour');
+      $date->addGranularity('minute');
+    }
+    return $date;
+  }
+}
+
+// Fields:
+
+// Test end date.
+// Test allowed_values.
+// Test host_entity.
+// Test "bypass" permission.
+// Test restrictions of date form element.

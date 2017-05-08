@@ -1,0 +1,261 @@
+<?php
+
+/**
+ * @file
+ * Tests for date_restrictions_minmax.module.
+ */
+
+/**
+ * Tests for host_entity based relative/fixed minmax restrictions.
+ */
+class DateRestrictionsHostEntityMinMaxTestCase extends DateRestrictionsBase {
+  public static function getInfo() {
+    return array(
+      'name' => 'Min/Max relative/fixed host entity',
+      'description' => 'Test Min/Max restrictions, based on relative/fixed limits from the host entity.',
+      'group' => 'Date Restrictions',
+    );
+  }
+
+  function setUp() {
+    $modules = array('date_restrictions_host_entity', 'date_restrictions_minmax', 'date', 'interval');
+    parent::setUp($modules);
+
+    // Create date field. We will use it as host_entity source.
+    // TODO: For completeness we should test also datetime, datestamp and
+    // all widget types.
+    $field_name = 'field_host_entity_date';
+    $options = array(
+      'label' => $field_name,
+      'field_name' => $field_name,
+      'field_type' => 'date', 
+      'input_format' => $this->date_input_format,
+      'tz_handling' => $this->date_tz_handling,
+      'widget_type' => 'date_popup',
+    );
+    $this->createDateField($options);
+
+
+    // Create interval field. We will use it as host_entity source.
+    $field_name = 'field_host_entity_interval';
+    $options = array(
+      'label' => $field_name,
+      'field_name' => $field_name,
+    );
+    $this->createIntervalField($options);
+  }
+
+  /**
+   * Fixed min date.
+   *
+   * Test YYYY-04-12 is not valid for YYYY-04-14 min restriction.
+   */
+  public function testDateLowerThanMin() {
+    $restrictions = array(
+      'min' => array(
+        'type' => 'host_entity_date',
+        'host_entity_date' => array(
+          'field' => 'node:story:field_host_entity_date',
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testDateLowerThanMin'));
+  }
+  public function _testDateLowerThanMin($context) {
+    $year = date('Y');
+    $start = array(
+      'year'   => $year,
+      'month'  => 4,
+      'day'    => 12,
+    );
+
+    // Prepare the value for the host entity date field.
+    $date = $this->newDateObject("${year}-04-14");
+    $edit = $this->setHostEntityDate($date);
+
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start, NULL, $edit);
+
+    $message = t('Dates before @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates before min date are not allowed (host entity).');
+  }
+
+  /**
+   * Fixed max date.
+   *
+   * Test YYYY-04-12 is not valid for YYYY-04-01 max restriction.
+   */
+  public function testDateGreaterThanMax() {
+    $restrictions = array(
+      'max' => array(
+        'type' => 'host_entity_date',
+        'host_entity_date' => array(
+          'field' => 'node:story:field_host_entity_date',
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testDateGreaterThanMax'));
+  }
+  public function _testDateGreaterThanMax($context) {
+    $year = date('Y');
+    $start = array(
+      'year'   => $year,
+      'month'  => 4,
+      'day'    => 12,
+    );
+
+    // Prepare the value for the host entity date field.
+    $date = $this->newDateObject("${year}-04-01");
+    $edit = $this->setHostEntityDate($date);
+
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start, NULL, $edit);
+
+    $message = t('Dates after @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates after max date are not allowed (host entity).');
+  }
+
+  /**
+   * Fixed min interval.
+   *
+   * Test today is not valid for today+1 min restriction.
+   */
+  public function testIntervalLowerThanMin() {
+    $restrictions = array(
+      'min' => array(
+        'type' => 'host_entity_interval',
+        'host_entity_interval' => array(
+          'field' => 'node:story:field_host_entity_interval',
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testIntervalLowerThanMin'));
+  }
+  public function _testIntervalLowerThanMin($context) {
+    $date = $this->newDateObject('now', NULL, FALSE);
+    $start = array(
+      'year'   => $date->format('Y'),
+      'month'  => $date->format('n'),
+      'day'    => $date->format('d'),
+    );
+
+    // Prepare the value for the host entity interval field.
+    $edit = array();
+    $interval = array('interval' => 1, 'period' => 'day');
+    $edit['field_host_entity_interval[und][0][interval]'] = $interval['interval'];
+    $edit['field_host_entity_interval[und][0][period]'] = $interval['period'];
+
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start, NULL, $edit);
+
+    interval_apply_interval($date, $interval);
+    $message = t('Dates before @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates before min interval are not allowed (host entity).');
+  }
+
+  /**
+   * Fixed max interval.
+   *
+   * Test today+2 is not valid for today+1 max restriction.
+   */
+  public function testIntervalGreaterThanMax() {
+    $restrictions = array(
+      'max' => array(
+        'type' => 'host_entity_interval',
+        'host_entity_interval' => array(
+          'field' => 'node:story:field_host_entity_interval',
+        ),
+      ),
+    );
+    parent::runTests($restrictions, NULL, array($this, '_testIntervalGreaterThanMax'));
+  }
+  public function _testIntervalGreaterThanMax($context) {
+    $now = $this->newDateObject('now', NULL, FALSE);
+    $date = clone($now);
+    $date->modify('+ 2 days');
+    $start = array(
+      'year'   => $date->format('Y'),
+      'month'  => $date->format('n'),
+      'day'    => $date->format('d'),
+    );
+
+    // Prepare the value for the host entity interval field.
+    $edit = array();
+    $interval = array('interval' => 1, 'period' => 'day');
+    $edit['field_host_entity_interval[und][0][interval]'] = $interval['interval'];
+    $edit['field_host_entity_interval[und][0][period]'] = $interval['period'];
+
+    $this->postNode($context['field_name'], $context['field_type'], $context['widget_type'], $start, NULL, $edit);
+
+    $date = clone($now);
+    interval_apply_interval($date, $interval);
+    $message = t('Dates after @date are not allowed', array('@date' => $date->format($this->date_input_format)));
+    $this->assertText($message, 'Dates after max interval are not allowed (host entity).');
+  }
+
+  /**
+   * Fills edit array with keys for the host entity date field.
+   */
+  private function setHostEntityDate($date, $edit = array()) {
+    $format = date_limit_format($this->date_input_format, array('year', 'month', 'day'));
+    $edit['field_host_entity_date[und][0][value][date]'] = $date->format($format);
+
+    $format = date_limit_format($this->date_input_format, array('hour', 'minute'));
+    $edit['field_host_entity_date[und][0][value][time]'] = $date->format($format);
+
+    return $edit;
+  }
+
+  /**
+   * Creates a field of type interval and an instance attached to
+   * the 'story' bundle of node entity type. That bundle is created in
+   * DateFieldBasic::setUp().
+   */
+  public function createIntervalField($values) {
+    extract($values);
+
+    $field = array(
+      'settings' => array(),
+      'field_name' => $field_name,
+      'type' => 'interval',
+      'cardinality' => '1',
+    );
+
+    $instance = array(
+      'label' => $label,
+      'widget' => array(
+        'type' => 'interval_default',
+        'module' => 'interval',
+        'active' => 0,
+        'settings' => array(),
+      ),
+      'settings' => array(
+        'allowed_periods' => array(
+          'day' => 'day',
+          'second' => 0,
+          'minute' => 0,
+          'hour' => 0,
+          'month' => 0,
+          'year' => 0,
+          'week' => 0,
+          'fortnight' => 0,
+          'quarter' => 0,
+        ),
+      ),
+      'display' => array(
+        'default' => array(
+          'label' => 'above',
+          'type' => 'interval_default',
+          'settings' => array(),
+          'module' => 'interval',
+        ),
+      ),
+      'required' => 0,
+      'description' => '',
+      'default_value' => NULL,
+      'field_name' => $field_name,
+      'entity_type' => 'node',
+      'bundle' => 'story',
+    );
+    $field = field_create_field($field);
+    $instance = field_create_instance($instance);
+  }
+}
+
